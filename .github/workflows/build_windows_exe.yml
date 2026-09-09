@@ -8,11 +8,12 @@ on:
       - 'templates/**'
       - 'requirements.txt'
       - 'minio_server.spec'
+      - 'installer.iss'
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Checkout code
@@ -39,9 +40,30 @@ jobs:
         run: |
           pyinstaller --clean minio_server.spec
 
-      - name: Upload artifact
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+      - name: Compile installer with Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files (x86)\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          if (-not $iscc) { Write-Error "ISCC.exe not found"; exit 1 }
+          Write-Host "Using ISCC: $($iscc.FullName)"
+          & $iscc.FullName installer.iss
+          if (-not $?) { exit 1 }
+
+      - name: Upload folder artifact
         uses: actions/upload-artifact@v4
         with:
           name: minio-file-service-win32
           path: dist/minio_file_service/
+          retention-days: 30
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: minio-file-service-installer
+          path: installer/
           retention-days: 30

@@ -80,7 +80,23 @@ minio_client = None
 upload_progress = {}
 upload_progress_lock = threading.Lock()
 
-CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".minio_config.json")
+def _resolve_config_file():
+    """返回配置文件路径: 优先 exe 所在目录(便携模式), 目录不可写时回退到 %APPDATA%(安装模式)."""
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    local_path = os.path.join(base_dir, ".minio_config.json")
+    if os.access(base_dir, os.W_OK):
+        return local_path
+    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+    fallback_dir = os.path.join(appdata, "MinIOFileService")
+    try:
+        if not os.path.exists(fallback_dir):
+            os.makedirs(fallback_dir)
+        return os.path.join(fallback_dir, ".minio_config.json")
+    except Exception:
+        return local_path
+
+
+CONFIG_FILE = _resolve_config_file()
 
 
 # =================== MinIO Helpers ===================
