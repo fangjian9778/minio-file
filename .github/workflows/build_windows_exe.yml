@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'minio_server.py'
+      - 'main.py'
       - 'templates/**'
       - 'requirements.txt'
       - 'minio_server.spec'

@@ -1,3 +1,5 @@
 flask>=2.0.0
 flask-cors>=3.0.0
 minio>=7.0.0
+pywebview>=4.0.0
+pythonnet>=3.0.0
