@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environments  
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets
+.minio_config.json
+
+# Test/diagnostic files
+*_diag*.py
+*_diag*.txt
+TEST_REPORT.md
+e2e_test.py
+GUIDE.md
+python2.7/

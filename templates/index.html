@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件管理服务</title>
+    <style>
+        /* =================== CSS Reset & Base =================== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #4285f4;
+            --primary-dark: #3367d6;
+            --success: #34a853;
+            --danger: #ea4335;
+            --warning: #fbbc04;
+            --bg: #f0f2f5;
+            --card-bg: #ffffff;
+            --text: #202124;
+            --text-secondary: #5f6368;
+            --border: #dadce0;
+            --radius: 8px;
+            --shadow: 0 1px 3px rgba(0,0,0,.1), 0 1px 2px rgba(0,0,0,.06);
+            --shadow-lg: 0 4px 16px rgba(0,0,0,.12);
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        /* =================== Layout =================== */
+        .app-header {
+            background: linear-gradient(135deg, var(--primary), #6c63ff);
+            color: white;
+            padding: 20px 0;
+            box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .app-header .container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .app-header h1 { font-size: 1.5rem; font-weight: 600; }
+        .app-header .status-badge {
+            font-size: .8rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            background: rgba(255,255,255,.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #ea4335;
+            display: inline-block;
+        }
+        .status-dot.connected { background: var(--success); }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .main-content { padding: 24px 0; }
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card-title .icon { font-size: 1.2rem; }
+        /* =================== Grid =================== */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+        /* =================== Forms =================== */
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: .85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: .95rem;
+            transition: border-color .2s, box-shadow .2s;
+            outline: none;
+            background: white;
+        }
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(66,133,244,.15);
+        }
+        .form-row { display: flex; gap: 12px; }
+        .form-row .form-group { flex: 1; }
+        .form-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: .9rem;
+        }
+        .form-check input[type="checkbox"] {
+            width: 18px; height: 18px;
+            accent-color: var(--primary);
+        }
+        /* =================== Buttons =================== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: .9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all .2s;
+            text-decoration: none;
+            line-height: 1.4;
+        }
+        .btn:disabled { opacity: .5; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover:not(:disabled) { background: #2d9249; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover:not(:disabled) { background: #d33426; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-outline:hover:not(:disabled) { background: var(--bg); }
+        .btn-sm { padding: 6px 12px; font-size: .8rem; }
+        .btn-block { width: 100%; }
+        /* =================== Tabs =================== */
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 20px;
+            gap: 4px;
+        }
+        .tab-btn {
+            padding: 10px 20px;
+            border: none;
+            background: none;
+            font-size: .9rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all .2s;
+        }
+        .tab-btn:hover { color: var(--primary); }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-spacer { flex: 1; }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+        /* =================== Upload Zone =================== */
+        .upload-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .2s;
+            background: #fafbfc;
+        }
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary);
+            background: rgba(66,133,244,.04);
+        }
+        .upload-zone .upload-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .upload-zone p { color: var(--text-secondary); font-size: .9rem; }
+        .upload-zone .browse-link {
+            color: var(--primary);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        /* =================== Progress =================== */
+        .progress-bar-container {
+            background: #e8eaed;
+            border-radius: 10px;
+            height: 24px;
+            overflow: hidden;
+            margin: 12px 0;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), #6c63ff);
+            border-radius: 10px;
+            transition: width .3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .75rem;
+            font-weight: 600;
+            color: white;
+            min-width: 40px;
+        }
+        .progress-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: .8rem;
+            color: var(--text-secondary);
+        }
+        /* =================== File Table =================== */
+        .file-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+        .file-table th {
+            text-align: left;
+            padding: 10px 12px;
+            background: var(--bg);
+            font-weight: 600;
+            font-size: .8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+        }
+        .file-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .file-table tr:hover td { background: #f8f9fa; }
+        .file-table .actions { white-space: nowrap; }
+        .file-name {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 300px;
+            overflow: hidden;
+        }
+        .file-name .file-icon { font-size: 1.2rem; flex-shrink: 0; }
+        .file-name .name-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        /* =================== Alert =================== */
+        .alert {
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            font-size: .9rem;
+            margin-bottom: 16px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            animation: slideDown .3s ease;
+        }
+        .alert.show { display: flex; }
+        .alert-success { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7e1c3; }
+        .alert-error { background: #fce8e6; color: #c5221f; border: 1px solid #f5b6b3; }
+        .alert-info { background: #e8f0fe; color: #1967d2; border: 1px solid #a8c7fa; }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* =================== Misc =================== */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+        .table-responsive { overflow-x: auto; }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: .75rem;
+            font-weight: 600;
+        }
+        .badge-primary { background: #e8f0fe; color: var(--primary); }
+        .btn-group { display: flex; gap: 8px; }
+        .select-wrapper select {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235f6368' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        @media (max-width: 640px) {
+            .file-table th:nth-child(3),
+            .file-table td:nth-child(3) { display: none; }
+            .file-table th:nth-child(4),
+            .file-table td:nth-child(4) { display: none; }
+            .container { padding: 0 12px; }
+            .card { padding: 16px; }
+            .tabs { overflow-x: auto; }
+        }
+        footer {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+            font-size: .8rem;
+        }
+        .path-config-list { margin-top: 12px; }
+        .path-config-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .path-config-item:last-child { border-bottom: none; }
+        .path-config-item .bucket-name {
+            font-weight: 600;
+            min-width: 120px;
+            color: var(--primary);
+        }
+        .path-config-item .path-value {
+            flex: 1;
+            font-family: monospace;
+            font-size: .85rem;
+            color: var(--text-secondary);
+        }
+        .path-input-group { display: flex; gap: 8px; align-items: center; }
+        .path-input-group .form-control { flex: 1; }
+        .search-bar { display: flex; gap: 8px; align-items: center; }
+        .search-bar .form-control { flex: 1; }
+        .search-type-group { display: flex; gap: 4px; }
+        .search-type-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            background: white;
+            border-radius: var(--radius);
+            font-size: .8rem;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .search-type-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+        .search-results-info {
+            font-size: .85rem;
+            color: var(--text-secondary);
+            margin: 8px 0;
+        }
+        .file-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
+        .select-all-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .selected-count {
+            font-size: .85rem;
+            color: var(--primary);
+            font-weight: 600;
+        }
+        @media (max-width: 640px) {
+            .file-table th:nth-child(1),
+            .file-table td:nth-child(1) { display: none; }
+            .search-bar { flex-wrap: wrap; }
+            .search-type-group { width: 100%; }
+        }
+        /* =================== Breadcrumb =================== */
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 0;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
+        .breadcrumb-item {
+            font-size: .9rem;
+            color: var(--primary);
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .breadcrumb-item:hover { text-decoration: underline; }
+        .breadcrumb-item.active { color: var(--text); cursor: default; font-weight: 600; }
+        .breadcrumb-sep { color: var(--text-secondary); font-size: .8rem; }
+        /* =================== File List Item =================== */
+        .file-list-item {
+            display: flex;
+            align-items: center;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+            transition: background .15s;
+        }
+        .file-list-item:hover { background: #f8f9fa; }
+        .file-list-item .item-icon { font-size: 1.4rem; flex-shrink: 0; width: 32px; text-align: center; }
+        .file-list-item .item-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-list-item .item-size { font-size: .85rem; color: var(--text-secondary); min-width: 80px; text-align: right; }
+        .file-list-item .item-actions { white-space: nowrap; display: flex; gap: 4px; }
+        /* =================== Upload File List =================== */
+        .upload-file-list { margin-top: 16px; }
+        .upload-file-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            margin-bottom: 6px;
+            gap: 10px;
+        }
+        .upload-file-item .file-info { flex: 1; min-width: 0; }
+        .upload-file-item .file-name-text { font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .upload-file-item .file-size-text { font-size: .8rem; color: var(--text-secondary); }
+        /* =================== Folder Dropdown =================== */
+        .folder-dropdown { position: relative; }
+        .folder-dropdown-menu {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            max-height: 250px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none;
+        }
+        .folder-dropdown-menu.show { display: block; }
+        .folder-dropdown-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: .9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .folder-dropdown-item:hover { background: var(--bg); }
+        .folder-dropdown-item .folder-icon { font-size: 1rem; }
+        /* =================== Rename Input =================== */
+        .rename-input {
+            padding: 4px 8px;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            font-size: .9rem;
+            outline: none;
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <div class="container">
+        <h1>文件管理服务</h1>
+        <div class="status-badge">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">未连接</span>
+        </div>
+    </div>
+</header>
+
+<main class="main-content">
+    <div class="container">
+        <!-- Alert messages -->
+        <div class="alert alert-success" id="alertSuccess"><span id="alertSuccessText"></span></div>
+        <div class="alert alert-error" id="alertError"><span id="alertErrorText"></span></div>
+        <div class="alert alert-info" id="alertInfo"><span id="alertInfoText"></span></div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="config">连接配置</button>
+            <button class="tab-btn" data-tab="upload">文件上传</button>
+            <button class="tab-btn" data-tab="download">文件下载</button>
+        </div>
+
+        <!-- =================== Tab: Config =================== -->
+        <div class="tab-panel active" id="panel-config">
+            <div class="card">
+                <div class="card-title"><span class="icon">&#9881;</span> MinIO 服务器连接</div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:2">
+                        <label for="endpoint">服务器地址</label>
+                        <input type="text" class="form-control" id="endpoint" placeholder="例如: play.min.io 或 192.168.1.100:9000">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label for="port">端口</label>
+                        <input type="text" class="form-control" id="port" placeholder="9000">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="accessKey">Access Key</label>
+                        <input type="text" class="form-control" id="accessKey" placeholder="输入 Access Key">
+                    </div>
+                    <div class="form-group">
+                        <label for="secretKey">Secret Key</label>
+                        <input type="password" class="form-control" id="secretKey" placeholder="输入 Secret Key">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-check"><input type="checkbox" id="secure"> 使用 HTTPS 加密连接</label>
+                </div>
+                <div style="display:flex;gap:12px;margin-top:8px">
+                    <button class="btn btn-primary" onclick="saveConfig()">&#128276; 保存并连接</button>
+                    <button class="btn btn-outline" onclick="testConnection()">&#9889; 仅测试连接</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- =================== Tab: Upload =================== -->
+        <div class="tab-panel" id="panel-upload">
+            <!-- Upload Section -->
+            <div class="card">
+                <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件上传</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="uploadBucket">目标桶 (Bucket)</label>
+                        <div class="select-wrapper">
+                            <select class="form-control" id="uploadBucket" onchange="onUploadBucketChange()">
+                                <option value="">请先连接 MinIO 服务器</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="uploadFolderPath">上传路径</label>
+                        <div class="folder-dropdown" id="uploadFolderDropdown">
+                            <div class="path-input-group">
+                                <input type="text" class="form-control" id="uploadFolderPath"
+                                       placeholder="例如: uploads/2024/">
+                                <button class="btn btn-sm btn-primary" onclick="loadUploadFolders()">&#128193; 浏览</button>
+                            </div>
+                            <div class="folder-dropdown-menu" id="uploadFolderMenu"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Multi-file Drop zone -->
+                <div class="upload-zone" id="uploadZone" onclick="document.getElementById('multiFileInput').click()">
+                    <div class="upload-icon">&#128196;</div>
+                    <p><strong>拖拽文件到此处</strong> 或 <span class="browse-link">浏览选择文件</span></p>
+                    <p style="margin-top:8px;font-size:.8rem;color:#999">支持多文件选择与批量上传</p>
+                    <input type="file" id="multiFileInput" class="hidden" multiple onchange="handleMultiFileSelect(this)">
+                </div>
+                <!-- Selected file list -->
+                <div id="uploadFileList" class="upload-file-list hidden">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                        <strong>待上传文件 (<span id="uploadFileCount">0</span>)</strong>
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline" onclick="clearUploadList()">清空列表</button>
+                            <button class="btn btn-sm btn-success" id="batchUploadBtn" onclick="batchUpload()">&#11015; 批量上传</button>
+                        </div>
+                    </div>
+                    <div id="uploadFileItems"></div>
+                </div>
+                <!-- Progress -->
+                <div id="uploadProgressArea" class="hidden" style="margin-top:16px">
+                    <div class="progress-info">
+                        <span id="uploadProgressPercent">0%</span>
+                        <span id="uploadProgressBytes">0 B / 0 B</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" id="uploadProgressBar" style="width:0%"></div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- =================== Tab: Download =================== -->
+        <div class="tab-panel" id="panel-download">
+            <div class="card">
+                <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件下载</div>
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label for="downloadBucket">选择桶 (Bucket)</label>
+                        <div class="select-wrapper">
+                            <select class="form-control" id="downloadBucket" onchange="onDownloadBucketChange()">
+                                <option value="">请先连接 MinIO 服务器</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="downloadPrefix">文件夹前缀</label>
+                        <div class="folder-dropdown" id="downloadFolderDropdown">
+                            <div class="path-input-group">
+                                <input type="text" class="form-control" id="downloadPrefix"
+                                       placeholder="例如: uploads/2024/" oninput="debounceLoadDownloadFiles()">
+                                <button class="btn btn-sm btn-primary" onclick="loadDownloadFolders()">&#128193; 浏览</button>
+                            </div>
+                            <div class="folder-dropdown-menu" id="downloadFolderMenu"></div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Search -->
+                <div class="form-group">
+                    <label>文件搜索</label>
+                    <div class="search-bar">
+                        <input type="text" class="form-control" id="downloadSearchInput"
+                               placeholder="输入文件名进行搜索..." oninput="debounceDownloadSearch()">
+                        <div class="search-type-group">
+                            <button class="search-type-btn active" data-type="fuzzy" onclick="setDownloadSearchType('fuzzy')">模糊</button>
+                            <button class="search-type-btn" data-type="wildcard" onclick="setDownloadSearchType('wildcard')">通配符</button>
+                            <button class="search-type-btn" data-type="regex" onclick="setDownloadSearchType('regex')">正则</button>
+                        </div>
+                        <button class="btn btn-sm btn-primary" onclick="searchDownloadFiles()">&#128269; 搜索</button>
+                    </div>
+                </div>
+                <!-- Selection Bar -->
+                <div class="select-all-bar hidden" id="downloadSelectAllBar">
+                    <label class="form-check">
+                        <input type="checkbox" class="file-checkbox" id="downloadSelectAllCheckbox" onchange="toggleDownloadSelectAll()"> 全选
+                    </label>
+                    <span class="selected-count" id="downloadSelectedCount">已选择 0 个文件</span>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-primary" onclick="batchDownloadSelected()">&#128230; 批量下载</button>
+                    </div>
+                </div>
+                <div id="downloadFileListArea">
+                    <div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶以查看文件列表</p></div>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+</main>
+
+<footer>
+    <p>MinIO File Management &bull; Powered by Python + Flask + MinIO SDK</p>
+</footer>
+
+<script>
+    // =================== State ===================
+    var selectedUploadFiles = [];
+    var uploadFileIdCounter = 0;
+    var currentUploadId = null;
+    var progressTimer = null;
+    var allDownloadFiles = [];
+    var selectedDownloadFiles = {};
+var currentDownloadSearchType = 'fuzzy';
+    var downloadSearchTimer = null;
+    var downloadLoadTimer = null;
+
+    // =================== Tab Navigation ===================
+    document.querySelectorAll('.tab-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            btn.classList.add('active');
+            document.getElementById('panel-' + btn.getAttribute('data-tab')).classList.add('active');
+            var tab = btn.getAttribute('data-tab');
+            if (tab === 'upload') refreshBuckets('upload');
+            if (tab === 'download') refreshBuckets('download');
+        });
+    });
+
+    // =================== 鉴权 ===================
+    // 启动时校验 session, 失败则跳到 /minio/auth 引导重新登录
+    // 页面加载直接初始化
+    loadConfig();
+
+    // =================== Alert Helpers ===================
+    function showAlert(type, message) {
+        document.querySelectorAll('.alert').forEach(function(a) { a.classList.remove('show'); });
+        var el = document.getElementById('alert' + type.charAt(0).toUpperCase() + type.slice(1));
+        document.getElementById('alert' + type.charAt(0).toUpperCase() + type.slice(1) + 'Text').textContent = message;
+        el.classList.add('show');
+        setTimeout(function() { el.classList.remove('show'); }, 5000);
+    }
+
+    // =================== API Helpers ===================
+    function apiRequest(method, path, data, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open(method, '/minio/api' + path, true);
+        xhr.setRequestHeader('Content-Type', 'application/json;charset=UTF-8');
+        xhr.timeout = 30000;
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                try {
+                    var resp = JSON.parse(xhr.responseText);
+                    if (xhr.status === 200) callback(null, resp);
+                    else callback(resp.error || 'Request failed: ' + xhr.status, null);
+                } catch(e) { callback('JSON parse error', null); }
+            }
+        };
+        xhr.onerror = function() { callback('Network error', null); };
+        xhr.ontimeout = function() { callback('Request timeout', null); };
+        if (data) xhr.send(JSON.stringify(data)); else xhr.send();
+    }
+
+    // =================== Utility ===================
+    function formatSize(bytes) {
+        if (bytes === 0) return '0 B';
+        var k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        return (bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0) + ' ' + sizes[i];
+    }
+
+    function getFileIcon(name) {
+        var ext = (name.split('.').pop() || '').toLowerCase();
+        var map = {
+            'pdf': '&#128040;', 'doc': '&#128196;', 'docx': '&#128196;',
+            'xls': '&#128202;', 'xlsx': '&#128202;', 'csv': '&#128202;',
+            'png': '&#127748;', 'jpg': '&#127748;', 'jpeg': '&#127748;',
+            'gif': '&#127748;', 'bmp': '&#127748;', 'webp': '&#127748;',
+            'mp4': '&#127909;', 'avi': '&#127909;', 'mov': '&#127909;',
+            'mp3': '&#127925;', 'wav': '&#127925;', 'flac': '&#127925;',
+            'zip': '&#128230;', 'rar': '&#128230;', 'tar': '&#128230;', 'gz': '&#128230;',
+            'py': '&#128187;', 'js': '&#128187;', 'java': '&#128187;',
+            'html': '&#128187;', 'css': '&#128187;',
+            'txt': '&#128203;', 'md': '&#128203;',
+        };
+        return map[ext] || '&#128196;';
+    }
+
+    function getFolderIcon() { return '&#128193;'; }
+
+    function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function escapeAttr(str) {
+        return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // =================== Config ===================
+    function saveConfig() {
+        var config = getConfigFromForm();
+        if (!config.host || !config.access_key || !config.secret_key) {
+            showAlert('error', '请填写完整的连接信息');
+            return;
+        }
+        apiRequest('POST', '/config', config, function(err, resp) {
+            if (err) { showAlert('error', '连接失败: ' + err); updateConnectionStatus(false); }
+            else { showAlert('success', resp.message || '连接成功！'); updateConnectionStatus(true); refreshBuckets(); }
+        });
+    }
+
+    function testConnection() { saveConfig(); }
+
+    function getConfigFromForm() {
+        return {
+            host: document.getElementById('endpoint').value.trim(),
+            port: document.getElementById('port').value.trim(),
+            access_key: document.getElementById('accessKey').value.trim(),
+            secret_key: document.getElementById('secretKey').value.trim(),
+            secure: document.getElementById('secure').checked,
+        };
+    }
+
+    function loadSavedConfig() {
+        apiRequest('GET', '/config', null, function(err, resp) {
+            if (err) return;
+            if (resp.endpoint || resp.host) {
+                if (resp.host) {
+                    document.getElementById('endpoint').value = resp.host;
+                    document.getElementById('port').value = resp.port || '9000';
+                } else {
+                    var parts = resp.endpoint.split(':');
+                    document.getElementById('endpoint').value = parts[0];
+                    document.getElementById('port').value = parts[1] || '9000';
+                }
+                document.getElementById('accessKey').value = resp.access_key || '';
+                document.getElementById('secure').checked = resp.secure || false;
+            }
+            updateConnectionStatus(resp.connected || false);
+            if (resp.connected) refreshBuckets();
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        var dot = document.getElementById('statusDot');
+        var text = document.getElementById('statusText');
+        if (connected) { dot.classList.add('connected'); text.textContent = '已连接'; }
+        else { dot.classList.remove('connected'); text.textContent = '未连接'; }
+    }
+
+    // =================== Buckets ===================
+    function refreshBuckets(_target) {
+        apiRequest('GET', '/buckets', null, function(err, resp) {
+            if (err) { showAlert('error', '获取桶列表失败: ' + err); return; }
+            var options = '<option value="">-- 选择桶 --</option>';
+            if (resp.buckets && resp.buckets.length > 0) {
+                resp.buckets.forEach(function(b) {
+                    options += '<option value="' + b.name + '">' + b.name + '</option>';
+                });
+            } else {
+                options = '<option value="">暂无桶，请先创建</option>';
+            }
+            document.getElementById('uploadBucket').innerHTML = options;
+            document.getElementById('downloadBucket').innerHTML = options;
+            var savedBucket = localStorage.getItem('last_bucket');
+            if (savedBucket) {
+                document.getElementById('uploadBucket').value = savedBucket;
+                document.getElementById('downloadBucket').value = savedBucket;
+            }
+        });
+    }
+
+    // =================== Upload Bucket Change ===================
+    function onUploadBucketChange() {
+        var bucket = document.getElementById('uploadBucket').value;
+        localStorage.setItem('last_bucket', bucket);
+    }
+
+    // =================== Upload Folder Dropdown ===================
+    function toggleUploadFolderDropdown() {
+        document.getElementById('uploadFolderMenu').classList.toggle('show');
+    }
+
+    function loadUploadFolders() {
+        var bucket = document.getElementById('uploadBucket').value;
+        if (!bucket) { showAlert('error', '请先选择目标桶'); return; }
+        loadFoldersInto(bucket, 'upload');
+    }
+
+    function selectUploadFolder(path) {
+        document.getElementById('uploadFolderPath').value = path;
+        document.getElementById('uploadFolderMenu').classList.remove('show');
+    }
+
+    // =================== Download Folder Dropdown ===================
+    function loadDownloadFolders() {
+        var bucket = document.getElementById('downloadBucket').value;
+        if (!bucket) { showAlert('error', '请先选择桶'); return; }
+        loadFoldersInto(bucket, 'download');
+    }
+
+    function selectDownloadFolder(path) {
+        document.getElementById('downloadPrefix').value = path;
+        document.getElementById('downloadFolderMenu').classList.remove('show');
+        debounceLoadDownloadFiles();
+    }
+
+    // 通用: 拉取并渲染指定桶 + 前缀的子文件夹, 支持点击进入下一层
+    function loadFoldersInto(bucket, mode) {
+        var prefixInputId = mode === 'upload' ? 'uploadFolderPath' : 'downloadPrefix';
+        var menuId = mode === 'upload' ? 'uploadFolderMenu' : 'downloadFolderMenu';
+        var menu = document.getElementById(menuId);
+        var currentPrefix = document.getElementById(prefixInputId).value.trim();
+        menu.innerHTML = '<div class="folder-dropdown-item"><span class="spinner" style="border-color:var(--primary);border-top-color:transparent"></span> 加载中...</div>';
+        menu.classList.add('show');
+        var query = '?bucket=' + encodeURIComponent(bucket);
+        if (currentPrefix) query += '&prefix=' + encodeURIComponent(currentPrefix);
+        apiRequest('GET', '/folders' + query, null, function(err, resp) {
+            if (err) { menu.innerHTML = '<div class="folder-dropdown-item" style="color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>'; return; }
+            var folders = resp.folders || [];
+            if (folders.length === 0) {
+                menu.innerHTML = '<div class="folder-dropdown-item" style="color:var(--text-secondary)">该目录下暂无子文件夹</div>';
+                return;
+            }
+            // 父级 (返回上一级) 入口
+            var html = '';
+            if (currentPrefix) {
+                var parent = currentPrefix.replace(/\/+$/, '').split('/').slice(0, -1).join('/');
+                if (parent) parent = parent + '/'; else parent = '';
+                html += '<div class="folder-dropdown-item" style="color:var(--primary);font-weight:600" onclick="select' + (mode === 'upload' ? 'Upload' : 'Download') + 'Folder(\'' + escapeAttr(parent) + '\')"><span class="folder-icon">&#11013;</span> 上一级 (根目录)</div>';
+            }
+            folders.forEach(function(folder) {
+                html += '<div class="folder-dropdown-item" onclick="select' + (mode === 'upload' ? 'Upload' : 'Download') + 'Folder(\'' + escapeAttr(folder) + '\')"><span class="folder-icon">&#128193;</span> ' + escapeHtml(folder) + '</div>';
+            });
+            menu.innerHTML = html;
+        });
+    }
+
+    // Close dropdowns on outside click
+      document.addEventListener('click', function(e) {
+          var uploadDropdown = document.getElementById('uploadFolderDropdown');
+          if (uploadDropdown && !uploadDropdown.contains(e.target)) {
+              document.getElementById('uploadFolderMenu').classList.remove('show');
+          }
+          var downloadDropdown = document.getElementById('downloadFolderDropdown');
+          if (downloadDropdown && !downloadDropdown.contains(e.target)) {
+              document.getElementById('downloadFolderMenu').classList.remove('show');
+          }
+      });
+
+    // =================== Multi-File Upload ===================
+    var uploadZone = document.getElementById('uploadZone');
+    uploadZone.addEventListener('dragover', function(e) { e.preventDefault(); uploadZone.classList.add('dragover'); });
+    uploadZone.addEventListener('dragleave', function() { uploadZone.classList.remove('dragover'); });
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault(); uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) addFilesToList(e.dataTransfer.files);
+    });
+
+    function handleMultiFileSelect(input) {
+        if (input.files && input.files.length > 0) addFilesToList(input.files);
+    }
+
+    function addFilesToList(fileList) {
+        for (var i = 0; i < fileList.length; i++) {
+            selectedUploadFiles.push({
+                id: 'file-' + (++uploadFileIdCounter),
+                file: fileList[i],
+                name: fileList[i].name,
+                size: fileList[i].size
+            });
+        }
+        renderUploadFileList();
+    }
+
+    function renderUploadFileList() {
+        var container = document.getElementById('uploadFileList');
+        if (selectedUploadFiles.length === 0) { container.classList.add('hidden'); return; }
+        container.classList.remove('hidden');
+        document.getElementById('uploadFileCount').textContent = selectedUploadFiles.length;
+        var html = '';
+        selectedUploadFiles.forEach(function(item) {
+            html += '<div class="upload-file-item">' +
+                '<span style="font-size:1.2rem">' + getFileIcon(item.name) + '</span>' +
+                '<div class="file-info"><div class="file-name-text" title="' + escapeHtml(item.name) + '">' + escapeHtml(item.name) + '</div>' +
+                '<div class="file-size-text">' + formatSize(item.size) + '</div></div>' +
+                '<button class="btn btn-sm btn-danger" onclick="removeUploadFile(\'' + item.id + '\')">&#128465;</button></div>';
+        });
+        document.getElementById('uploadFileItems').innerHTML = html;
+    }
+
+    function removeUploadFile(fileId) {
+        for (var i = 0; i < selectedUploadFiles.length; i++) {
+            if (selectedUploadFiles[i].id === fileId) { selectedUploadFiles.splice(i, 1); break; }
+        }
+        renderUploadFileList();
+    }
+
+    function clearUploadList() { selectedUploadFiles = []; renderUploadFileList(); }
+
+    function batchUpload() {
+        if (selectedUploadFiles.length === 0) { showAlert('error', '请先选择要上传的文件'); return; }
+        var bucket = document.getElementById('uploadBucket').value;
+        if (!bucket) { showAlert('error', '请选择目标桶'); return; }
+        var uploadPath = document.getElementById('uploadFolderPath').value.trim();
+        if (uploadPath && !uploadPath.endsWith('/')) uploadPath = uploadPath + '/';
+        var totalFiles = selectedUploadFiles.length;
+        var failedFiles = 0;
+        document.getElementById('batchUploadBtn').disabled = true;
+        document.getElementById('batchUploadBtn').innerHTML = '<span class="spinner"></span> 上传中...';
+        document.getElementById('uploadProgressArea').classList.remove('hidden');
+
+        function uploadNext(index) {
+            if (index >= totalFiles) {
+                document.getElementById('batchUploadBtn').disabled = false;
+                document.getElementById('batchUploadBtn').innerHTML = '&#11015; 批量上传';
+                if (failedFiles === 0) { showAlert('success', '全部 ' + totalFiles + ' 个文件上传成功！'); clearUploadList(); }
+                else { showAlert('error', '上传完成: ' + (totalFiles - failedFiles) + ' 成功, ' + failedFiles + ' 失败'); }
+                return;
+            }
+            var item = selectedUploadFiles[index];
+            var formData = new FormData();
+            formData.append('file', item.file);
+            formData.append('bucket', bucket);
+            formData.append('custom_name', uploadPath + item.name);
+            formData.append('upload_id', 'upload-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6));
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/minio/api/upload', true);
+            xhr.timeout = 600000;
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    var totalBytes = selectedUploadFiles.reduce(function(s, f) { return s + f.size; }, 0);
+                    var currentBytes = selectedUploadFiles.slice(0, index).reduce(function(s, f) { return s + f.size; }, 0) + e.loaded;
+                    updateUploadProgress(currentBytes, totalBytes, Math.round(((index + e.loaded / e.total) / totalFiles) * 100));
+                }
+            });
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4) {
+                    if (xhr.status !== 200) failedFiles++;
+                    uploadNext(index + 1);
+                }
+            };
+            xhr.onerror = function() { failedFiles++; uploadNext(index + 1); };
+            xhr.send(formData);
+        }
+        uploadNext(0);
+    }
+
+    function updateUploadProgress(current, total, percent) {
+        document.getElementById('uploadProgressBar').style.width = percent + '%';
+        document.getElementById('uploadProgressBar').textContent = percent + '%';
+        document.getElementById('uploadProgressPercent').textContent = percent + '%';
+        document.getElementById('uploadProgressBytes').textContent = formatSize(current) + ' / ' + formatSize(total);
+    }
+
+    function pollProgress(uploadId) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/minio/api/upload/progress?upload_id=' + uploadId, true);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (data.status === 'complete' || data.status === 'error') { clearInterval(progressTimer); return; }
+                    if (data.total > 0) updateUploadProgress(data.current, data.total, Math.round((data.current / data.total) * 100));
+                } catch(e) {}
+            }
+        };
+        xhr.send();
+    }
+
+    // =================== MinIO Download ===================
+    function onDownloadBucketChange() {
+        var bucket = document.getElementById('downloadBucket').value;
+        localStorage.setItem('last_bucket', bucket);
+        loadDownloadFiles();
+    }
+
+    function debounceLoadDownloadFiles() {
+        if (downloadLoadTimer) clearTimeout(downloadLoadTimer);
+        downloadLoadTimer = setTimeout(loadDownloadFiles, 400);
+    }
+
+    function loadDownloadFiles() {
+        var bucket = document.getElementById('downloadBucket').value;
+        var prefix = document.getElementById('downloadPrefix').value.trim();
+        if (!bucket) {
+            document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>请选择桶以查看文件</p></div>';
+            document.getElementById('downloadSelectAllBar').classList.add('hidden');
+            allDownloadFiles = []; selectedDownloadFiles = {};
+            return;
+        }
+        var query = '?bucket=' + encodeURIComponent(bucket);
+        if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
+        document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">加载中...</p></div>';
+        apiRequest('GET', '/files' + query, null, function(err, resp) {
+            if (err) {
+                showAlert('error', '获取文件列表失败: ' + err);
+                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#9888;</div><p>加载失败</p></div>';
+                document.getElementById('downloadSelectAllBar').classList.add('hidden');
+                allDownloadFiles = []; selectedDownloadFiles = {};
+                return;
+            }
+            allDownloadFiles = resp.files || [];
+            selectedDownloadFiles = {};
+            if (allDownloadFiles.length === 0) {
+                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>该桶暂无文件</p></div>';
+                document.getElementById('downloadSelectAllBar').classList.add('hidden');
+                return;
+            }
+            document.getElementById('downloadSelectAllBar').classList.remove('hidden');
+            renderDownloadFileTable(allDownloadFiles, bucket);
+        });
+    }
+
+    // =================== Download Search ===================
+    function setDownloadSearchType(type) {
+        currentDownloadSearchType = type;
+        document.querySelectorAll('.search-type-btn').forEach(function(btn) {
+            btn.classList.toggle('active', btn.getAttribute('data-type') === type);
+        });
+    }
+
+    function debounceDownloadSearch() {
+        if (downloadSearchTimer) clearTimeout(downloadSearchTimer);
+        downloadSearchTimer = setTimeout(searchDownloadFiles, 400);
+    }
+
+    function searchDownloadFiles() {
+        var bucket = document.getElementById('downloadBucket').value;
+        var pattern = document.getElementById('downloadSearchInput').value.trim();
+        if (!bucket) { showAlert('error', '请先选择桶'); return; }
+        if (!pattern) { loadDownloadFiles(); return; }
+        var query = '?bucket=' + encodeURIComponent(bucket) + '&pattern=' + encodeURIComponent(pattern) + '&type=' + currentDownloadSearchType;
+        document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">搜索中...</p></div>';
+        apiRequest('GET', '/search' + query, null, function(err, resp) {
+            if (err) {
+                showAlert('error', '搜索失败: ' + err);
+                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#9888;</div><p>搜索失败</p></div>';
+                document.getElementById('downloadSelectAllBar').classList.add('hidden');
+                return;
+            }
+            var files = resp.files || [];
+            allDownloadFiles = files; selectedDownloadFiles = {};
+            if (files.length === 0) {
+                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128269;</div><p>未找到匹配的文件</p></div>';
+                document.getElementById('downloadSelectAllBar').classList.add('hidden');
+                return;
+            }
+            document.getElementById('downloadSelectAllBar').classList.remove('hidden');
+            document.getElementById('downloadSelectedCount').textContent = '找到 ' + files.length + ' 个文件';
+            renderDownloadFileTable(files, bucket);
+        });
+    }
+
+    // =================== Download File Table ===================
+    function renderDownloadFileTable(files, bucket) {
+        var html = '<div class="table-responsive"><table class="file-table"><thead><tr>' +
+            '<th><input type="checkbox" class="file-checkbox" onchange="toggleDownloadSelectAll()"></th>' +
+            '<th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
+        files.forEach(function(f) {
+            html += '<tr>' +
+                '<td><input type="checkbox" class="file-checkbox" data-name="' + escapeAttr(f.name) + '" onchange="toggleDownloadFileSelect(this)"></td>' +
+                '<td><div class="file-name"><span class="file-icon">' + getFileIcon(f.name) + '</span>' +
+                '<span class="name-text" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span></div></td>' +
+                '<td>' + formatSize(f.size) + '</td>' +
+                '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
+                '<td class="actions"><div class="btn-group">' +
+                '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#11015; 下载</button>' +
+                '</div></td></tr>';
+        });
+        html += '</tbody></table></div>';
+        document.getElementById('downloadFileListArea').innerHTML = html;
+        updateDownloadSelectAllState();
+    }
+
+    // =================== Download Selection ===================
+    function toggleDownloadFileSelect(checkbox) {
+        var name = checkbox.getAttribute('data-name');
+        if (checkbox.checked) selectedDownloadFiles[name] = true;
+        else delete selectedDownloadFiles[name];
+        updateDownloadSelectedCount();
+        updateDownloadSelectAllState();
+    }
+
+    function toggleDownloadSelectAll() {
+        var toolbarCb = document.getElementById('downloadSelectAllCheckbox');
+        var tableCb = document.querySelector('#downloadFileListArea .file-table th .file-checkbox');
+        var isChecked = false;
+        if (toolbarCb && tableCb) {
+            isChecked = !toolbarCb.checked;
+            toolbarCb.checked = isChecked;
+            tableCb.checked = isChecked;
+        }
+        document.querySelectorAll('#downloadFileListArea .file-checkbox[data-name]').forEach(function(cb) {
+            cb.checked = isChecked;
+            var name = cb.getAttribute('data-name');
+            if (isChecked) selectedDownloadFiles[name] = true;
+            else delete selectedDownloadFiles[name];
+        });
+        updateDownloadSelectedCount();
+    }
+
+    function updateDownloadSelectedCount() {
+        document.getElementById('downloadSelectedCount').textContent = '已选择 ' + Object.keys(selectedDownloadFiles).length + ' 个文件';
+    }
+
+    function updateDownloadSelectAllState() {
+        var total = allDownloadFiles.length;
+        var selected = Object.keys(selectedDownloadFiles).length;
+        var toolbarCb = document.getElementById('downloadSelectAllCheckbox');
+        var tableCb = document.querySelector('#downloadFileListArea .file-table th .file-checkbox');
+        if (toolbarCb) toolbarCb.checked = total > 0 && selected === total;
+        if (tableCb) tableCb.checked = total > 0 && selected === total;
+    }
+
+    // =================== Batch Download ===================
+    function batchDownloadSelected() {
+        var bucket = document.getElementById('downloadBucket').value;
+        var names = Object.keys(selectedDownloadFiles);
+        if (names.length === 0) { showAlert('error', '请先选择要下载的文件'); return; }
+        showAlert('info', '正在打包 ' + names.length + ' 个文件...');
+        window.open('/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + names.map(encodeURIComponent).join(','), '_blank');
+    }
+
+    function downloadFile(bucket, objectName) {
+        window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
+    }
+
+    function deleteFile(bucket, objectName) {
+        if (!confirm('确定要删除文件 "' + objectName + '" 吗？')) return;
+        apiRequest('POST', '/delete', { bucket: bucket, object_name: objectName }, function(err, resp) {
+            if (err) showAlert('error', '删除失败: ' + err);
+            else { showAlert('success', '文件已删除'); loadDownloadFiles(); }
+        });
+    }
+
+    // =================== Init ===================
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSavedConfig();
+    });
+</script>
+
+</body>
+</html>
