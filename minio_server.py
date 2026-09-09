@@ -71,6 +71,7 @@ minio_config = {
     "secure": False,
     "host": "",
     "port": "9000",
+    "path_prefix": "",
 }
 
 # Per-bucket path configuration
@@ -101,13 +102,64 @@ CONFIG_FILE = _resolve_config_file()
 
 # =================== MinIO Helpers ===================
 
-def _create_minio_client(host, port, access_key, secret_key, secure):
+def _inject_path_prefix(url, prefix):
+    """在 URL 的 host:port 之后、路径之前插入前缀(仅改路径, 不改 Host, 不影响已生成的签名).
+    例如: http://host:9000/bucket/obj -> http://host:9000/minio-api/bucket/obj
+          http://host:9000/           -> http://host:9000/minio-api/"""
+    prefix = (prefix or "").strip().strip("/")
+    if not prefix:
+        return url
+    scheme, sep, rest = url.partition("://")
+    if not sep or not rest:
+        return url
+    hostpart, slash, path_q = rest.partition("/")
+    if not slash:
+        # 根路径请求, 如 http://host:9000
+        return scheme + "://" + hostpart + "/" + prefix + "/"
+    return scheme + "://" + hostpart + "/" + prefix + "/" + path_q
+
+
+def _make_prefixed_pool(path_prefix):
+    """构造带路径前缀注入能力的 urllib3 PoolManager (minio SDK v6/v7 走 http_client)."""
+    try:
+        from urllib3 import PoolManager
+    except ImportError:
+        return None
+
+    class _PrefixedPool(PoolManager):
+        def __init__(self, _path_prefix, *args, **kwargs):
+            self._path_prefix = _path_prefix
+            super(_PrefixedPool, self).__init__(*args, **kwargs)
+
+        def urlopen(self, method, url, *args, **kwargs):
+            if self._path_prefix:
+                url = _inject_path_prefix(url, self._path_prefix)
+            return super(_PrefixedPool, self).urlopen(method, url, *args, **kwargs)
+
+    try:
+        return _PrefixedPool(path_prefix)
+    except Exception:
+        return None
+
+
+def _create_minio_client(host, port, access_key, secret_key, secure, path_prefix=""):
     """Create MinIO client, auto-detect port param support."""
     port_int = int(port) if str(port).isdigit() else 9000
-    if _MINIO_HAS_PORT:
-        return Minio(host, port=port_int, access_key=access_key,
-                     secret_key=secret_key, secure=secure)
-    else:
+    http_client = _make_prefixed_pool(path_prefix) if path_prefix else None
+    kwargs = {}
+    if http_client is not None:
+        kwargs["http_client"] = http_client
+    try:
+        if _MINIO_HAS_PORT:
+            return Minio(host, port=port_int, access_key=access_key,
+                         secret_key=secret_key, secure=secure, **kwargs)
+        return Minio(host + ":" + str(port), access_key=access_key,
+                     secret_key=secret_key, secure=secure, **kwargs)
+    except TypeError:
+        # 旧版 SDK 不支持 http_client 参数时, 回退为不带前缀直连
+        if _MINIO_HAS_PORT:
+            return Minio(host, port=port_int, access_key=access_key,
+                         secret_key=secret_key, secure=secure)
         return Minio(host + ":" + str(port), access_key=access_key,
                      secret_key=secret_key, secure=secure)
 
@@ -125,6 +177,7 @@ def get_minio_client():
                 minio_config["access_key"],
                 minio_config["secret_key"],
                 minio_config["secure"],
+                minio_config.get("path_prefix", ""),
             )
         except Exception:
             minio_client = None
@@ -173,22 +226,39 @@ def load_config():
 # =================== Endpoint Parsing ===================
 
 def _parse_endpoint(endpoint):
+    """解析 endpoint, 返回 (host, port, path_prefix).
+    支持: host / host:port / http(s)://host:port/prefix / [ipv6]:port 等."""
     host = endpoint
     port = "9000"
-    if endpoint:
-        host = endpoint.strip("[]")
-        if "[" in endpoint:
-            parts = endpoint.split("]:")
-            if len(parts) == 2:
-                host = parts[0].strip("[]")
-                port = parts[1].strip()
-        elif ":" in endpoint:
-            last_colon = endpoint.rfind(":")
-            last_part = endpoint[last_colon + 1:]
-            if last_part.isdigit() and len(last_part) <= 5:
-                host = endpoint[:last_colon]
-                port = last_part
-    return host, port
+    prefix = ""
+    s = (endpoint or "").strip()
+    # 1. 去掉 scheme (http:// https://)
+    if "://" in s:
+        s = s.split("://", 1)[1]
+    # 2. 分离路径前缀, 例如 "/minio-api"
+    slash = s.find("/")
+    if slash != -1:
+        prefix = s[slash:].rstrip("/")
+        s = s[:slash]
+    # 3. 解析 host[:port]
+    if s.startswith("["):
+        parts = s.split("]:")
+        if len(parts) == 2:
+            host = parts[0].strip("[]")
+            port = parts[1].strip()
+        else:
+            host = s.strip("[]")
+    elif ":" in s:
+        last_colon = s.rfind(":")
+        last_part = s[last_colon + 1:]
+        if last_part.isdigit() and len(last_part) <= 5:
+            host = s[:last_colon]
+            port = last_part
+        else:
+            host = s
+    else:
+        host = s
+    return host, port, prefix
 
 
 # =================== Route: Pages ===================
@@ -203,7 +273,7 @@ def index():
 
 @bp.route("/api/config", methods=["GET"])
 def get_config():
-    host, port = _parse_endpoint(minio_config.get("endpoint", ""))
+    host, port, prefix = _parse_endpoint(minio_config.get("endpoint", ""))
     # Fallback to saved host/port
     if not host and minio_config.get("host"):
         host = minio_config["host"]
@@ -212,6 +282,7 @@ def get_config():
         "host": host,
         "port": port,
         "endpoint": host + ":" + port,
+        "path_prefix": minio_config.get("path_prefix") or prefix or "",
         "access_key": minio_config["access_key"],
         "secure": minio_config["secure"],
         "connected": False,
@@ -232,14 +303,19 @@ def set_config():
     host = data.get("host", "").strip()
     port = data.get("port", "9000").strip()
     raw_endpoint = data.get("endpoint", "").strip()
+    path_prefix = (data.get("path_prefix", "") or "").strip()
 
-    host = host.strip("[]")
-    if raw_endpoint:
-        raw_endpoint = raw_endpoint.strip("[]")
-
-    if raw_endpoint:
-        host, port = _parse_endpoint(raw_endpoint)
-    elif not host:
+    # 前端把完整地址(可能带前缀)放在 host 字段提交, 统一走解析器
+    effective = raw_endpoint or host
+    if effective:
+        parsed_host, parsed_port, endpoint_prefix = _parse_endpoint(effective)
+        if parsed_host:
+            host = parsed_host
+        if parsed_port:
+            port = parsed_port
+        if endpoint_prefix:
+            path_prefix = endpoint_prefix
+    if not host:
         return jsonify({"error": "MinIO server address is required."}), 400
 
     config = {
@@ -249,6 +325,7 @@ def set_config():
         "secure": data.get("secure", False),
         "host": host,
         "port": port,
+        "path_prefix": path_prefix,
     }
     if not config["access_key"] or not config["secret_key"]:
         return jsonify({"error": "Access key and secret key are required."}), 400
