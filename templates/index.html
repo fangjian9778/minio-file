@@ -544,12 +544,16 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="accessKey">Access Key</label>
-                        <input type="text" class="form-control" id="accessKey" placeholder="输入 Access Key">
+                        <input type="password" class="form-control" id="accessKey" placeholder="输入 Access Key">
                     </div>
                     <div class="form-group">
                         <label for="secretKey">Secret Key</label>
                         <input type="password" class="form-control" id="secretKey" placeholder="输入 Secret Key">
                     </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:8px">
+                    <label class="form-check"><input type="checkbox" id="showSecrets" onchange="toggleSecretsVisible(this)"> 显示密钥</label>
+                    <span style="font-size:.78rem;color:var(--text-secondary)">密钥已加密后存储到本地配置文件</span>
                 </div>
                 <div class="form-group">
                     <label class="form-check"><input type="checkbox" id="secure"> 使用 HTTPS 加密连接</label>
@@ -667,6 +671,7 @@
                     </label>
                     <span class="selected-count" id="downloadSelectedCount">已选择 0 个文件</span>
                     <div class="btn-group">
+                        <button class="btn btn-sm btn-danger" onclick="batchDeleteSelected()">&#128465; 删除所选</button>
                         <button class="btn btn-sm btn-primary" onclick="batchDownloadSelected()">&#128230; 批量下载</button>
                     </div>
                 </div>
@@ -712,7 +717,7 @@ var currentDownloadSearchType = 'fuzzy';
     // =================== 鉴权 ===================
     // 启动时校验 session, 失败则跳到 /minio/auth 引导重新登录
     // 页面加载直接初始化
-    loadConfig();
+    loadSavedConfig();
 
     // =================== 当前路径显示 ===================
     function updateUploadPathBar() {
@@ -809,6 +814,12 @@ var currentDownloadSearchType = 'fuzzy';
 
     function testConnection() { saveConfig(); }
 
+    function toggleSecretsVisible(cb) {
+        var type = cb.checked ? 'text' : 'password';
+        document.getElementById('accessKey').type = type;
+        document.getElementById('secretKey').type = type;
+    }
+
     function getConfigFromForm() {
         return {
             host: document.getElementById('endpoint').value.trim(),
@@ -833,6 +844,7 @@ var currentDownloadSearchType = 'fuzzy';
                     document.getElementById('port').value = parts[1] || '9000';
                 }
                 document.getElementById('accessKey').value = resp.access_key || '';
+                document.getElementById('secretKey').value = resp.secret_key || '';
                 document.getElementById('secure').checked = resp.secure || false;
             }
             updateConnectionStatus(resp.connected || false);
@@ -1174,6 +1186,7 @@ var currentDownloadSearchType = 'fuzzy';
                 '<td class="actions"><div class="btn-group">' +
                 '<button class="btn btn-sm btn-outline" onclick="copyFileName(\'' + escapeAttr(f.name) + '\')">&#128203; 复制</button>' +
                 '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#11015; 下载</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="deleteFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#128465;</button>' +
                 '</div></td></tr>';
         });
         html += '</tbody></table></div>';
@@ -1222,16 +1235,52 @@ var currentDownloadSearchType = 'fuzzy';
     }
 
     // =================== Batch Download ===================
+    function hasInAppApi() {
+        return !!(window.pywebview && window.pywebview.api && window.pywebview.api.download);
+    }
+
     function batchDownloadSelected() {
         var bucket = document.getElementById('downloadBucket').value;
         var names = Object.keys(selectedDownloadFiles);
         if (names.length === 0) { showAlert('error', '请先选择要下载的文件'); return; }
-        showAlert('info', '正在打包 ' + names.length + ' 个文件...');
-        window.open('/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + names.map(encodeURIComponent).join(','), '_blank');
+        if (hasInAppApi()) {
+            showAlert('info', '正在打包 ' + names.length + ' 个文件...');
+            window.pywebview.api.batch_download(bucket, names).then(function(res) {
+                if (res.status === 'ok') showAlert('success', '已下载 ' + res.count + ' 个文件到: ' + res.folder);
+                else if (res.status !== 'cancelled') showAlert('error', '批量下载失败: ' + res.message);
+            });
+        } else {
+            showAlert('info', '正在打包 ' + names.length + ' 个文件...');
+            window.open('/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + names.map(encodeURIComponent).join(','), '_blank');
+        }
     }
 
     function downloadFile(bucket, objectName) {
-        window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
+        if (hasInAppApi()) {
+            showAlert('info', '正在保存，请选择保存位置...');
+            window.pywebview.api.download(bucket, objectName).then(function(res) {
+                if (res.status === 'ok') showAlert('success', '已保存到: ' + res.path);
+                else if (res.status !== 'cancelled') showAlert('error', '下载失败: ' + res.message);
+            });
+        } else {
+            window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
+        }
+    }
+
+    // =================== Delete (单个 / 批量) ===================
+    function batchDeleteSelected() {
+        var bucket = document.getElementById('downloadBucket').value;
+        var names = Object.keys(selectedDownloadFiles);
+        if (names.length === 0) { showAlert('error', '请先选择要删除的文件'); return; }
+        if (!confirm('确定删除选中的 ' + names.length + ' 个文件吗？')) return;
+        apiRequest('POST', '/delete-many', { bucket: bucket, objects: names }, function(err, resp) {
+            if (err) { showAlert('error', '删除失败: ' + err); return; }
+            var failedCount = (resp.failed || []).length;
+            if (failedCount === 0) showAlert('success', '成功删除 ' + resp.deleted + ' 个文件');
+            else showAlert('error', '删除完成: ' + resp.deleted + ' 成功, ' + failedCount + ' 失败');
+            selectedDownloadFiles = {};
+            loadDownloadFiles();
+        });
     }
 
     // =================== 复制文件名 ===================
@@ -1272,9 +1321,7 @@ var currentDownloadSearchType = 'fuzzy';
     }
 
     // =================== Init ===================
-    document.addEventListener('DOMContentLoaded', function() {
-        loadSavedConfig();
-    });
+    // 页面初始化由脚本顶部 loadSavedConfig() 完成, 这里无需重复
 </script>
 
 </body>

@@ -11,8 +11,11 @@ import json
 import uuid
 import time
 import re
+import struct
+import base64
 import fnmatch
 import zipfile
+import hashlib
 import threading
 from datetime import datetime
 from io import BytesIO
@@ -56,6 +59,61 @@ def _s3_error_message(e):
         return str(getattr(e, "message", str(e)))
     except Exception:
         return str(e)
+
+
+# =================== Credential Encryption (at-rest) ===================
+# Access Key / Secret Key 以加密形式持久化到 .minio_config.json, 不在磁盘明文保存.
+# 用 PBKDF2 派生密钥 + 自实现 CTR 流密码 (仅 hashlib, 兼容 Python 2.7, 无外部依赖).
+
+_ENC_PASS = b"MinIO File Service Local Cred 2026"
+_ENC_PREFIX = "enc:"
+
+
+def _pbkdf2_key(passwd, salt, iters=20000, dklen=32):
+    """Python 2.7.8+ 的 hashlib 提供 pbkdf2_hmac."""
+    return hashlib.pbkdf2_hmac("sha256", passwd, salt, iters, dklen)
+
+
+def _xor_stream_cipher(data, key, iv):
+    """CTR 风格流密码: keystream = sha256(key + iv + counter), 逐 16 字节异或.
+    注意 Python 2 中遍历 str 得到的是单字符 str, 因此一律用 bytearray 取整数值."""
+    out = bytearray()
+    block = 0
+    pos = 0
+    while pos < len(data):
+        ctr = struct.pack(">Q", block)
+        ks = bytearray(hashlib.sha256(key + iv + ctr).digest())
+        chunk = bytearray(data[pos:pos + 16])
+        out += bytearray([chunk[i] ^ ks[i] for i in range(len(chunk))])
+        pos += 16
+        block += 1
+    return bytes(out)
+
+
+def encrypt_secret(plaintext):
+    """加密明文, 返回 'enc:' + base64(salt + iv + cipher). 空值原样返回."""
+    if plaintext is None or plaintext == "":
+        return ""
+    salt = os.urandom(16)
+    iv = os.urandom(16)
+    key = _pbkdf2_key(_ENC_PASS, salt)
+    cipher = _xor_stream_cipher(plaintext.encode("utf-8"), key, iv)
+    return _ENC_PREFIX + base64.b64encode(salt + iv + cipher).decode("ascii")
+
+
+def decrypt_secret(token):
+    """解密 'enc:' 前缀的密文. 旧配置(明文)或空值原样返回."""
+    if not token:
+        return ""
+    if not token.startswith(_ENC_PREFIX):
+        return token  # 旧版明文配置, 兼容
+    try:
+        raw = base64.b64decode(token[len(_ENC_PREFIX):].encode("ascii"))
+        salt, iv, cipher = raw[:16], raw[16:32], raw[32:]
+        key = _pbkdf2_key(_ENC_PASS, salt)
+        return _xor_stream_cipher(cipher, key, iv).decode("utf-8")
+    except Exception:
+        return ""
 
 
 app = Flask(__name__)
@@ -195,8 +253,12 @@ def save_config(config):
 
 
 def _persist_config():
+    # 磁盘只存密文: 内存中的明文密钥在此加密
+    persisted = dict(minio_config)
+    persisted["access_key"] = encrypt_secret(minio_config.get("access_key", ""))
+    persisted["secret_key"] = encrypt_secret(minio_config.get("secret_key", ""))
     data = {
-        "minio_config": minio_config,
+        "minio_config": persisted,
         "path_config": path_config,
     }
     try:
@@ -213,7 +275,11 @@ def load_config():
             with open(CONFIG_FILE, "r") as f:
                 saved = json.load(f)
                 if "minio_config" in saved:
-                    minio_config.update(saved["minio_config"])
+                    saved_minio = dict(saved["minio_config"])
+                    # 解密持久化的密钥(兼容旧明文)
+                    saved_minio["access_key"] = decrypt_secret(saved_minio.get("access_key", ""))
+                    saved_minio["secret_key"] = decrypt_secret(saved_minio.get("secret_key", ""))
+                    minio_config.update(saved_minio)
                 if "path_config" in saved:
                     path_config.update(saved["path_config"])
                 # 兼容老配置: 丢弃 local_config / local_path_config 等已下线模块的键
@@ -284,6 +350,7 @@ def get_config():
         "endpoint": host + ":" + port,
         "path_prefix": minio_config.get("path_prefix") or prefix or "",
         "access_key": minio_config["access_key"],
+        "secret_key": minio_config["secret_key"],
         "secure": minio_config["secure"],
         "connected": False,
     }
@@ -612,6 +679,39 @@ def delete_file():
             return jsonify({"error": "MinIO not configured."}), 400
         client.remove_object(bucket_name, object_name)
         return jsonify({"message": "File deleted successfully."})
+    except S3Error as e:
+        return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route("/api/delete-many", methods=["POST"])
+def delete_many_files():
+    """批量删除文件."""
+    data = request.get_json(force=True)
+    bucket_name = data.get("bucket", "")
+    objects = data.get("objects", []) or []
+    if not bucket_name or not objects:
+        return jsonify({"error": "Bucket and objects are required."}), 400
+    try:
+        client = get_minio_client()
+        if not client:
+            return jsonify({"error": "MinIO not configured."}), 400
+        deleted = 0
+        failed = []
+        for obj in objects:
+            try:
+                client.remove_object(bucket_name, obj)
+                deleted += 1
+            except Exception as e:
+                failed.append({"object": obj, "error": _s3_error_message(e)})
+        if deleted == 0 and failed:
+            return jsonify({"error": "All files failed to delete."}), 500
+        return jsonify({
+            "message": "Deleted %d file(s)" % deleted,
+            "deleted": deleted,
+            "failed": failed,
+        })
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
     except Exception as e:

@@ -66,8 +66,104 @@ def _run_flask(host, port):
         _log("Flask server error:\n" + traceback.format_exc())
 
 
+# =================== pywebview JS API (程序内下载/保存) ===================
+# 暴露给前端 JS 的接口, 在程序内弹出系统保存对话框并写入本地路径,
+# 避免跳到电脑默认浏览器下载.
+
+_api_window = None
+
+
+def _current_window():
+    import webview
+    if _api_window is not None:
+        return _api_window
+    if webview.windows:
+        return webview.windows[0]
+    return _api_window
+
+
+class _JsApi(object):
+    """通过 window.pywebview.api 暴露给前端的方法(返回 dict)."""
+
+    def download(self, bucket, object_name):
+        """保存单个文件: 弹出 SAVE 对话框选择本地路径."""
+        from webview import SAVE_DIALOG
+        filename = os.path.basename(object_name) or object_name or "download"
+        w = _current_window()
+        if w is None:
+            return {"status": "error", "message": "webview 窗口不可用"}
+        try:
+            result = w.create_file_dialog(SAVE_DIALOG, save_filename=filename)
+        except TypeError:
+            result = w.create_file_dialog(SAVE_DIALOG, save_filename=filename)
+        if not result:
+            return {"status": "cancelled"}
+        save_path = result if isinstance(result, (str, bytes)) else result[0]
+        try:
+            import minio_server
+            client = minio_server.get_minio_client()
+            if not client:
+                return {"status": "error", "message": "MinIO 未配置"}
+            resp = client.get_object(bucket, object_name)
+            try:
+                with open(save_path, "wb") as fh:
+                    while True:
+                        chunk = resp.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        fh.write(chunk)
+            finally:
+                resp.close()
+                resp.release_conn()
+            return {"status": "ok", "path": save_path}
+        except Exception as e:
+            _log("download error: " + str(e))
+            return {"status": "error", "message": str(e)}
+
+    def batch_download(self, bucket, object_names):
+        """批量下载: 弹出目录选择框, 逐个写入本地."""
+        from webview import FOLDER_DIALOG
+        if not object_names:
+            return {"status": "error", "message": "没有要下载的文件"}
+        w = _current_window()
+        if w is None:
+            return {"status": "error", "message": "webview 窗口不可用"}
+        try:
+            result = w.create_file_dialog(FOLDER_DIALOG)
+        except TypeError:
+            result = w.create_file_dialog(FOLDER_DIALOG)
+        if not result:
+            return {"status": "cancelled"}
+        folder = result if isinstance(result, (str, bytes)) else result[0]
+        try:
+            import minio_server
+            client = minio_server.get_minio_client()
+            if not client:
+                return {"status": "error", "message": "MinIO 未配置"}
+            saved = 0
+            for obj in object_names:
+                basename = os.path.basename(obj) or obj
+                local_path = os.path.join(folder, basename)
+                resp = client.get_object(bucket, obj)
+                try:
+                    with open(local_path, "wb") as fh:
+                        while True:
+                            chunk = resp.read(1024 * 1024)
+                            if not chunk:
+                                break
+                            fh.write(chunk)
+                finally:
+                    resp.close()
+                    resp.release_conn()
+                saved += 1
+            return {"status": "ok", "count": saved, "folder": folder}
+        except Exception as e:
+            _log("batch download error: " + str(e))
+            return {"status": "error", "message": str(e)}
+
+
 def main():
-    global LOG_FILE
+    global LOG_FILE, _api_window
 
     # 日志文件: 优先 exe 目录, 不可写时回退到 %APPDATA%
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -107,16 +203,19 @@ def main():
     try:
         # 主线程运行 GUI 事件循环, 内置浏览器加载页面
         import webview
+        # 暴露 JS API, 让前端在程序内下载/保存到本地路径
+        js_api = _JsApi()
         # 窗口图标: 与安装包/exe 图标保持一致 (pywebview >= 4.0 支持 icon 参数)
         window_kwargs = dict(
             width=1200,
             height=800,
             min_size=(900, 600),
+            js_api=js_api,
         )
         icon_path = _resource_path(os.path.join("assets", "app.ico"))
         if os.path.exists(icon_path):
             window_kwargs["icon"] = icon_path
-        webview.create_window("MinIO 文件服务", url, **window_kwargs)
+        _api_window = webview.create_window("MinIO 文件服务", url, **window_kwargs)
         webview.start()
         _log("Window closed, exiting.")
         # 窗口关闭即退出进程
@@ -125,8 +224,9 @@ def main():
         # 旧版 pywebview 不支持 icon 参数时重试
         try:
             import webview
-            webview.create_window("MinIO 文件服务", url, width=1200, height=800,
-                                  min_size=(900, 600))
+            js_api = _JsApi()
+            _api_window = webview.create_window("MinIO 文件服务", url, width=1200, height=800,
+                                                min_size=(900, 600), js_api=js_api)
             webview.start()
             os._exit(0)
         except Exception as e:
