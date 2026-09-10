@@ -72,6 +72,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,  # 桌面版: 隐藏控制台窗口
+    icon='assets/app.ico',  # 应用程序图标
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

@@ -31,6 +31,8 @@ SolidCompression=yes
 WizardStyle=modern
 ; 需要管理员权限安装 (写入 Program Files)
 PrivilegesRequired=admin
+; 安装包图标
+SetupIconFile=assets\app.ico
 ; 支持 Windows 7+
 MinVersion=6.1
 ; 使用中文界面
