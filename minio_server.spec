@@ -15,8 +15,8 @@ block_cipher = None
 _py_datas, _py_binaries, _py_hidden = collect_all('pythonnet')
 _wv_datas, _wv_binaries, _wv_hidden = collect_all('webview')
 
-# 收集数据文件: HTML 模板 + webview/pythonnet 附带文件
-data_files = [('templates', 'templates')] + _py_datas + _wv_datas
+# 收集数据文件: HTML 模板 + 应用图标 + webview/pythonnet 附带文件
+data_files = [('templates', 'templates'), ('assets/app.ico', 'assets')] + _py_datas + _wv_datas
 if os.path.exists('.minio_config.json'):
     data_files.append(('.minio_config.json', '.'))
 

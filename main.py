@@ -48,6 +48,14 @@ def _wait_server_ready(port, timeout=15):
     return False
 
 
+def _resource_path(rel):
+    """解析资源文件路径: 兼容 PyInstaller 打包(frozen) 与源码运行两种方式."""
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", None) or os.path.dirname(sys.executable)
+        return os.path.join(base, rel)
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), rel)
+
+
 def _run_flask(host, port):
     """在后台线程中运行 Flask 服务."""
     try:
@@ -99,17 +107,37 @@ def main():
     try:
         # 主线程运行 GUI 事件循环, 内置浏览器加载页面
         import webview
-        webview.create_window(
-            "MinIO 文件服务",
-            url,
+        # 窗口图标: 与安装包/exe 图标保持一致 (pywebview >= 4.0 支持 icon 参数)
+        window_kwargs = dict(
             width=1200,
             height=800,
             min_size=(900, 600),
         )
+        icon_path = _resource_path(os.path.join("assets", "app.ico"))
+        if os.path.exists(icon_path):
+            window_kwargs["icon"] = icon_path
+        webview.create_window("MinIO 文件服务", url, **window_kwargs)
         webview.start()
         _log("Window closed, exiting.")
         # 窗口关闭即退出进程
         os._exit(0)
+    except TypeError:
+        # 旧版 pywebview 不支持 icon 参数时重试
+        try:
+            import webview
+            webview.create_window("MinIO 文件服务", url, width=1200, height=800,
+                                  min_size=(900, 600))
+            webview.start()
+            os._exit(0)
+        except Exception as e:
+            _log("webview unavailable (%s), fallback to system browser" % e)
+            import webbrowser
+            webbrowser.open(url)
+            try:
+                while True:
+                    time.sleep(3600)
+            except KeyboardInterrupt:
+                pass
     except Exception as e:
         # WebView2 不可用(如 Win7 未装运行库): 回退为打开系统浏览器
         _log("webview unavailable (%s), fallback to system browser" % e)

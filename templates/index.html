@@ -81,6 +81,18 @@
             gap: 8px;
         }
         .card-title .icon { font-size: 1.2rem; }
+        /* =================== 当前路径条 =================== */
+        .path-bar {
+            background: #f0f6ff;
+            border: 1px solid #d3e3f7;
+            border-radius: 8px;
+            padding: 8px 14px;
+            margin-bottom: 16px;
+            font-size: .9rem;
+            color: #3a5f8a;
+            word-break: break-all;
+        }
+        .path-bar b { color: var(--primary); font-weight: 600; }
         /* =================== Grid =================== */
         .grid-2 {
             display: grid;
@@ -554,6 +566,7 @@
             <!-- Upload Section -->
             <div class="card">
                 <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件上传</div>
+                <div class="path-bar" id="uploadPathBar">当前路径: <b>未选择桶</b></div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="uploadBucket">目标桶 (Bucket)</label>
@@ -568,7 +581,7 @@
                         <div class="folder-dropdown" id="uploadFolderDropdown">
                             <div class="path-input-group">
                                 <input type="text" class="form-control" id="uploadFolderPath"
-                                       placeholder="例如: uploads/2024/">
+                                       placeholder="例如: uploads/2024/" oninput="updateUploadPathBar()">
                                 <button class="btn btn-sm btn-primary" onclick="loadUploadFolders()">&#128193; 浏览</button>
                             </div>
                             <div class="folder-dropdown-menu" id="uploadFolderMenu"></div>
@@ -611,6 +624,7 @@
         <div class="tab-panel" id="panel-download">
             <div class="card">
                 <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件下载</div>
+                <div class="path-bar" id="downloadPathBar">当前路径: <b>未选择桶</b></div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="downloadBucket">选择桶 (Bucket)</label>
@@ -625,7 +639,7 @@
                         <div class="folder-dropdown" id="downloadFolderDropdown">
                             <div class="path-input-group">
                                 <input type="text" class="form-control" id="downloadPrefix"
-                                       placeholder="例如: uploads/2024/" oninput="debounceLoadDownloadFiles()">
+                                       placeholder="例如: uploads/2024/" oninput="debounceLoadDownloadFiles(); updateDownloadPathBar()">
                                 <button class="btn btn-sm btn-primary" onclick="loadDownloadFolders()">&#128193; 浏览</button>
                             </div>
                             <div class="folder-dropdown-menu" id="downloadFolderMenu"></div>
@@ -699,6 +713,20 @@ var currentDownloadSearchType = 'fuzzy';
     // 启动时校验 session, 失败则跳到 /minio/auth 引导重新登录
     // 页面加载直接初始化
     loadConfig();
+
+    // =================== 当前路径显示 ===================
+    function updateUploadPathBar() {
+        var bucket = document.getElementById('uploadBucket').value;
+        var path = document.getElementById('uploadFolderPath').value.trim().replace(/^\/+/, '');
+        var full = bucket ? (bucket + (path ? '/' + path : '')) : '未选择桶';
+        document.getElementById('uploadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
+    }
+    function updateDownloadPathBar() {
+        var bucket = document.getElementById('downloadBucket').value;
+        var prefix = document.getElementById('downloadPrefix').value.trim().replace(/^\/+/, '');
+        var full = bucket ? (bucket + (prefix ? '/' + prefix : '')) : '未选择桶';
+        document.getElementById('downloadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
+    }
 
     // =================== Alert Helpers ===================
     function showAlert(type, message) {
@@ -838,6 +866,8 @@ var currentDownloadSearchType = 'fuzzy';
                 document.getElementById('uploadBucket').value = savedBucket;
                 document.getElementById('downloadBucket').value = savedBucket;
             }
+            updateUploadPathBar();
+            updateDownloadPathBar();
         });
     }
 
@@ -845,6 +875,7 @@ var currentDownloadSearchType = 'fuzzy';
     function onUploadBucketChange() {
         var bucket = document.getElementById('uploadBucket').value;
         localStorage.setItem('last_bucket', bucket);
+        updateUploadPathBar();
     }
 
     // =================== Upload Folder Dropdown ===================
@@ -861,6 +892,7 @@ var currentDownloadSearchType = 'fuzzy';
     function selectUploadFolder(path) {
         document.getElementById('uploadFolderPath').value = path;
         document.getElementById('uploadFolderMenu').classList.remove('show');
+        updateUploadPathBar();
     }
 
     // =================== Download Folder Dropdown ===================
@@ -873,6 +905,7 @@ var currentDownloadSearchType = 'fuzzy';
     function selectDownloadFolder(path) {
         document.getElementById('downloadPrefix').value = path;
         document.getElementById('downloadFolderMenu').classList.remove('show');
+        updateDownloadPathBar();
         debounceLoadDownloadFiles();
     }
 
@@ -1043,6 +1076,7 @@ var currentDownloadSearchType = 'fuzzy';
     function onDownloadBucketChange() {
         var bucket = document.getElementById('downloadBucket').value;
         localStorage.setItem('last_bucket', bucket);
+        updateDownloadPathBar();
         loadDownloadFiles();
     }
 
@@ -1054,6 +1088,7 @@ var currentDownloadSearchType = 'fuzzy';
     function loadDownloadFiles() {
         var bucket = document.getElementById('downloadBucket').value;
         var prefix = document.getElementById('downloadPrefix').value.trim();
+        updateDownloadPathBar();
         if (!bucket) {
             document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>请选择桶以查看文件</p></div>';
             document.getElementById('downloadSelectAllBar').classList.add('hidden');
@@ -1099,6 +1134,7 @@ var currentDownloadSearchType = 'fuzzy';
     function searchDownloadFiles() {
         var bucket = document.getElementById('downloadBucket').value;
         var pattern = document.getElementById('downloadSearchInput').value.trim();
+        updateDownloadPathBar();
         if (!bucket) { showAlert('error', '请先选择桶'); return; }
         if (!pattern) { loadDownloadFiles(); return; }
         var query = '?bucket=' + encodeURIComponent(bucket) + '&pattern=' + encodeURIComponent(pattern) + '&type=' + currentDownloadSearchType;
@@ -1132,10 +1168,11 @@ var currentDownloadSearchType = 'fuzzy';
             html += '<tr>' +
                 '<td><input type="checkbox" class="file-checkbox" data-name="' + escapeAttr(f.name) + '" onchange="toggleDownloadFileSelect(this)"></td>' +
                 '<td><div class="file-name"><span class="file-icon">' + getFileIcon(f.name) + '</span>' +
-                '<span class="name-text" title="' + escapeHtml(f.name) + '">' + escapeHtml(f.name) + '</span></div></td>' +
+                '<span class="name-text" title="点击复制文件名" style="cursor:pointer" onclick="copyFileName(\'' + escapeAttr(f.name) + '\')">' + escapeHtml(f.name) + '</span></div></td>' +
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
+                '<button class="btn btn-sm btn-outline" onclick="copyFileName(\'' + escapeAttr(f.name) + '\')">&#128203; 复制</button>' +
                 '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#11015; 下载</button>' +
                 '</div></td></tr>';
         });
@@ -1195,6 +1232,35 @@ var currentDownloadSearchType = 'fuzzy';
 
     function downloadFile(bucket, objectName) {
         window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
+    }
+
+    // =================== 复制文件名 ===================
+    function copyFileName(name) {
+        function fallbackCopy() {
+            var ta = document.createElement('textarea');
+            ta.value = name;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            return ok;
+        }
+        function finish(ok) {
+            if (ok) showAlert('success', '已复制: ' + name);
+            else showAlert('error', '复制失败，请手动选择复制');
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(name).then(
+                function() { finish(true); },
+                function() { finish(fallbackCopy()); }
+            );
+        } else {
+            finish(fallbackCopy());
+        }
     }
 
     function deleteFile(bucket, objectName) {

@@ -49,10 +49,10 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl"
 Source: "dist\minio_file_service\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-; 开始菜单快捷方式
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+; 开始菜单快捷方式 (显式指定 exe 图标, 保证与安装包一致)
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 ; 桌面快捷方式
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 
 [Run]
 ; 安装完成后可选启动
