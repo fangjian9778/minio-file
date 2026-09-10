@@ -505,37 +505,12 @@
         .folder-dropdown-item:hover { background: var(--bg); }
         .folder-dropdown-item .folder-icon { font-size: 1rem; }
         /* =================== Rename Input =================== */
-        /* =================== Floating / Mini Mode =================== */
-        body.floating-mode .tabs { display: none !important; }
-        body.floating-mode #panel-config { display: none !important; }
-        body.floating-mode .container { max-width: 100%; padding: 0 12px; }
-        body.floating-mode .app-header { padding: 8px 0; }
-        body.floating-mode .app-header h1 { font-size: 1rem; }
-        /* 侧边栏控制按钮 */
-        .window-controls {
-            display: flex;
-            gap: 4px;
-            align-items: center;
-        }
-        .window-ctrl-btn {
-            width: 28px;
-            height: 28px;
-            border: 1px solid rgba(255,255,255,.3);
-            background: rgba(255,255,255,.15);
-            color: white;
-            border-radius: 6px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: .85rem;
-            transition: background .2s;
-        }
-        .window-ctrl-btn:hover { background: rgba(255,255,255,.3); }
-        /* Download progress bar */
-        .download-progress-area {
+        /* =================== Rename Input =================== */
+        .rename-input {
             margin-top: 16px;
         }
+        /* Download progress bar */
+        .download-progress-area {
         .download-progress-item {
             display: flex;
             align-items: center;
@@ -565,10 +540,6 @@
     <div class="container">
         <h1>文件管理服务</h1>
         <div style="display:flex;align-items:center;gap:12px">
-            <div class="window-controls">
-                <button class="window-ctrl-btn" title="小窗/恢复" onclick="toggleMiniMode()">&#9635;</button>
-                <button class="window-ctrl-btn" title="悬浮窗" onclick="openFloatingWindow()">&#9776;</button>
-            </div>
             <div class="status-badge">
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusText">未连接</span>
@@ -595,15 +566,9 @@
         <div class="tab-panel active" id="panel-config">
             <div class="card">
                 <div class="card-title"><span class="icon">&#9881;</span> MinIO 服务器连接</div>
-                <div class="form-row">
-                    <div class="form-group" style="flex:2">
-                        <label for="endpoint">服务器地址</label>
-                        <input type="text" class="form-control" id="endpoint" placeholder="例如: 192.168.1.100:9000 或 192.168.1.100:8109/minio-api (走Nginx前缀)">
-                    </div>
-                    <div class="form-group" style="flex:1">
-                        <label for="port">端口</label>
-                        <input type="text" class="form-control" id="port" placeholder="9000">
-                    </div>
+                <div class="form-group">
+                    <label for="serverAddress">服务器地址 (包含端口和路径前缀)</label>
+                    <input type="text" class="form-control" id="serverAddress" placeholder="例如: 192.168.1.100:9000 或 192.168.1.100:8109/minio-api">
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -772,19 +737,6 @@ var currentDownloadSearchType = 'fuzzy';
     var downloadLoadTimer = null;
     var activeDownloads = {};  // download_id -> {name, total, start}
 
-    // =================== Floating Mode Detection ===================
-    (function() {
-        if (window.location.hash === '#floating') {
-            document.body.classList.add('floating-mode');
-            // 自动切到下载 tab
-            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
-            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
-            document.querySelector('[data-tab="upload"]').classList.add('active');
-            document.getElementById('panel-upload').classList.add('active');
-            refreshBuckets('upload');
-        }
-    })();
-
     // =================== Tab Navigation ===================
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
         btn.addEventListener('click', function() {
@@ -893,13 +845,13 @@ var currentDownloadSearchType = 'fuzzy';
     // =================== Config ===================
     function saveConfig() {
         var config = getConfigFromForm();
-        if (!config.host || !config.access_key || !config.secret_key) {
+        if (!config.server_address || !config.access_key || !config.secret_key) {
             showAlert('error', '请填写完整的连接信息');
             return;
         }
         apiRequest('POST', '/config', config, function(err, resp) {
             if (err) { showAlert('error', '连接失败: ' + err); updateConnectionStatus(false); }
-            else { showAlert('success', resp.message || '连接成功！'); updateConnectionStatus(true); refreshBuckets(); }
+            else { showAlert('success', resp.message || '连接成功！配置已保存'); updateConnectionStatus(true); refreshBuckets(); }
         });
     }
 
@@ -913,8 +865,7 @@ var currentDownloadSearchType = 'fuzzy';
 
     function getConfigFromForm() {
         return {
-            host: document.getElementById('endpoint').value.trim(),
-            port: document.getElementById('port').value.trim(),
+            server_address: document.getElementById('serverAddress').value.trim(),
             access_key: document.getElementById('accessKey').value.trim(),
             secret_key: document.getElementById('secretKey').value.trim(),
             secure: document.getElementById('secure').checked,
@@ -924,15 +875,13 @@ var currentDownloadSearchType = 'fuzzy';
     function loadSavedConfig() {
         apiRequest('GET', '/config', null, function(err, resp) {
             if (err) return;
-            if (resp.endpoint || resp.host) {
-                var prefix = resp.path_prefix || '';
-                if (resp.host) {
-                    document.getElementById('endpoint').value = resp.host + (prefix ? prefix : '');
-                    document.getElementById('port').value = resp.port || '9000';
-                } else {
-                    var parts = resp.endpoint.split(':');
-                    document.getElementById('endpoint').value = parts[0] + (prefix ? prefix : '');
-                    document.getElementById('port').value = parts[1] || '9000';
+            if (resp.server_address || resp.host) {
+                // 优先使用服务端返回的原始完整地址
+                if (resp.server_address) {
+                    document.getElementById('serverAddress').value = resp.server_address;
+                } else if (resp.host) {
+                    var prefix = resp.path_prefix || '';
+                    document.getElementById('serverAddress').value = resp.host + ':' + (resp.port || '9000') + prefix;
                 }
                 document.getElementById('accessKey').value = resp.access_key || '';
                 document.getElementById('secretKey').value = resp.secret_key || '';
@@ -1506,36 +1455,8 @@ var currentDownloadSearchType = 'fuzzy';
     // 每 1 秒轮询下载进度
     setInterval(pollDownloadProgress, 1000);
 
-    // =================== 窗口控制 ===================
-    function hasPywebviewApi() {
-        return !!(window.pywebview && window.pywebview.api);
-    }
-
-    function toggleMiniMode() {
-        if (!hasPywebviewApi()) { showAlert('info', '小窗模式仅在桌面版可用'); return; }
-        window.pywebview.api.toggle_mini_mode().then(function(res) {
-            if (res.status === 'ok') {
-                if (res.mini) {
-                    document.body.classList.add('floating-mode');
-                    showAlert('success', '已切换到小窗模式');
-                } else {
-                    document.body.classList.remove('floating-mode');
-                    showAlert('success', '已恢复正常窗口');
-                }
-            }
-        });
-    }
-
-    function openFloatingWindow() {
-        if (!hasPywebviewApi()) { showAlert('info', '悬浮窗仅在桌面版可用'); return; }
-        window.pywebview.api.create_floating_window().then(function(res) {
-            if (res.status === 'ok') showAlert('success', '悬浮窗已打开');
-        });
-    }
-
     // =================== Init ===================
     // 页面初始化由脚本顶部 loadSavedConfig() 完成, 这里无需重复
 </script>
-
 </body>
 </html>

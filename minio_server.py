@@ -131,6 +131,7 @@ minio_config = {
     "host": "",
     "port": "9000",
     "path_prefix": "",
+    "server_address": "",  # 保存用户输入的完整地址(含端口和路径前缀)
 }
 
 # Per-bucket path configuration
@@ -347,11 +348,20 @@ def get_config():
     if not host and minio_config.get("host"):
         host = minio_config["host"]
         port = minio_config.get("port", "9000")
+    # server_address: 优先返回用户原始输入的完整地址; 没有则从 host:port/prefix 反推
+    server_address = minio_config.get("server_address", "") or ""
+    if not server_address:
+        reconstructed = host + ":" + port
+        path_prefix = minio_config.get("path_prefix") or prefix or ""
+        if path_prefix:
+            reconstructed += path_prefix
+        server_address = reconstructed
     safe_config = {
         "host": host,
         "port": port,
         "endpoint": host + ":" + port,
         "path_prefix": minio_config.get("path_prefix") or prefix or "",
+        "server_address": server_address,
         "access_key": minio_config["access_key"],
         "secret_key": minio_config["secret_key"],
         "secure": minio_config["secure"],
@@ -370,13 +380,14 @@ def get_config():
 @bp.route("/api/config", methods=["POST"])
 def set_config():
     data = request.get_json(force=True)
+    server_address = data.get("server_address", "").strip()
     host = data.get("host", "").strip()
     port = data.get("port", "9000").strip()
     raw_endpoint = data.get("endpoint", "").strip()
     path_prefix = (data.get("path_prefix", "") or "").strip()
 
-    # 前端把完整地址(可能带前缀)放在 host 字段提交, 统一走解析器
-    effective = raw_endpoint or host
+    # 统一解析: 优先用 server_address, 其次 host/endpoint
+    effective = server_address or raw_endpoint or host
     if effective:
         parsed_host, parsed_port, endpoint_prefix = _parse_endpoint(effective)
         if parsed_host:
@@ -389,6 +400,7 @@ def set_config():
         return jsonify({"error": "MinIO server address is required."}), 400
 
     config = {
+        "server_address": server_address or effective,
         "endpoint": host + ":" + port,
         "access_key": data.get("access_key", "").strip(),
         "secret_key": data.get("secret_key", "").strip(),

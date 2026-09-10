@@ -76,8 +76,6 @@ def _run_flask(host, port):
 # 避免跳到电脑默认浏览器下载.
 
 _api_window = None
-_floating_window = None
-_is_mini_mode = False
 _current_port = 5000
 
 
@@ -193,48 +191,6 @@ class _JsApi(object):
         except Exception as e:
             _log("batch download error: " + str(e))
             return {"status": "error", "message": str(e)}
-
-    def toggle_mini_mode(self):
-        """切换小窗模式: 缩小主窗口并打开悬浮侧边窗."""
-        global _is_mini_mode, _floating_window
-        import webview
-        _is_mini_mode = not _is_mini_mode
-        w = _current_window()
-        if w is None:
-            return {"status": "error", "message": "窗口不可用"}
-        if _is_mini_mode:
-            # 主窗口缩到最小
-            w.resize(320, 500, activate=False)
-            return {"status": "ok", "mini": True}
-        else:
-            # 恢复正常大小
-            w.resize(1200, 800, activate=False)
-            if _floating_window:
-                try:
-                    _floating_window.hide()
-                except Exception:
-                    pass
-                _floating_window = None
-            return {"status": "ok", "mini": False}
-
-    def create_floating_window(self):
-        """打开悬浮侧边窗: 仅含上传 + 下载快捷入口."""
-        global _floating_window
-        import webview
-        if _floating_window:
-            try:
-                _floating_window.show()
-            except Exception:
-                pass
-            return {"status": "ok", "message": "已显示"}
-        # 新建小窗口, 加载同一个页面#panel-upload 或 #panel-download
-        _floating_window = webview.create_window(
-            "快捷操作",
-            "http://127.0.0.1:%d/minio#floating" % _resolve_port(),
-            width=280, height=400,
-            on_top=True,
-        )
-        return {"status": "ok"}
 
     def set_window_size(self, width, height):
         """自定义窗口大小."""
