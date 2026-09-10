@@ -505,12 +505,17 @@
         .folder-dropdown-item:hover { background: var(--bg); }
         .folder-dropdown-item .folder-icon { font-size: 1rem; }
         /* =================== Rename Input =================== */
-        /* =================== Rename Input =================== */
         .rename-input {
             margin-top: 16px;
+            padding: 4px 8px;
+            border: 1px solid var(--primary);
+            border-radius: 4px;
+            font-size: .9rem;
+            outline: none;
+            width: 200px;
         }
         /* Download progress bar */
-        .download-progress-area {
+        .download-progress-area { }
         .download-progress-item {
             display: flex;
             align-items: center;
@@ -523,15 +528,6 @@
         .download-progress-item .progress-mini { width: 120px; height: 6px; background: #e8eaed; border-radius: 3px; overflow: hidden; }
         .download-progress-item .progress-mini-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #6c63ff); border-radius: 3px; transition: width .3s; }
         .download-progress-item .progress-text { font-size: .8rem; color: var(--text-secondary); min-width: 40px; text-align: right; }
-        /* =================== Rename Input =================== */
-        .rename-input {
-            padding: 4px 8px;
-            border: 1px solid var(--primary);
-            border-radius: 4px;
-            font-size: .9rem;
-            outline: none;
-            width: 200px;
-        }
     </style>
 </head>
 <body>
@@ -1072,7 +1068,7 @@ var currentDownloadSearchType = 'fuzzy';
                 document.getElementById('batchUploadBtn').innerHTML = '&#11015; 批量上传';
                 document.getElementById('uploadCurrentFile').textContent = '';
                 if (failedFiles === 0) { showAlert('success', '全部 ' + totalFiles + ' 个文件上传成功！'); clearUploadList(); }
-                else { showAlert('error', '上传完成: ' + (totalFiles - failedFiles) + ' 成功, ' + failedFiles + ' 失败'); }
+                else { showAlert('error', '上传完成: ' + (totalFiles - failedFiles) + ' 成功, ' + failedFiles + ' 失败'); clearUploadList(); }
                 return;
             }
             var item = selectedUploadFiles[index];
@@ -1237,19 +1233,21 @@ var currentDownloadSearchType = 'fuzzy';
         var html = '<div class="table-responsive"><table class="file-table"><thead><tr>' +
             '<th><input type="checkbox" class="file-checkbox" onchange="toggleDownloadSelectAll()"></th>' +
             '<th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
-        files.forEach(function(f) {
+        files.forEach(function(f, idx) {
             var basename = fileBasename(f.name);
             var icon = getFileIcon(basename);
+            var escapedFull = escapeHtml(f.name);
+            var escapedBase = escapeHtml(basename);
             html += '<tr>' +
-                '<td><input type="checkbox" class="file-checkbox" data-name="' + escapeAttr(f.name) + '" onchange="toggleDownloadFileSelect(this)"></td>' +
+                '<td><input type="checkbox" class="file-checkbox" data-idx="' + idx + '" onchange="toggleDownloadFileSelectByIdx(this)"></td>' +
                 '<td><div class="file-name"><span class="file-icon">' + icon + '</span>' +
-                '<span class="name-text" title="' + escapeHtml(f.name) + ' (点击复制文件名)" style="cursor:pointer" onclick="copyFileName(\'' + escapeAttr(basename) + '\')">' + escapeHtml(basename) + '</span></div></td>' +
+                '<span class="name-text" title="' + escapedFull + ' (点击复制文件名)" style="cursor:pointer" onclick="copyFileNameByIdx(' + idx + ')">' + escapedBase + '</span></div></td>' +
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
-                '<button class="btn btn-sm btn-outline" onclick="copyFileName(\'' + escapeAttr(basename) + '\')">&#128203; 复制</button>' +
-                '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#11015; 下载</button>' +
-                '<button class="btn btn-sm btn-danger" onclick="deleteFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#128465;</button>' +
+                '<button class="btn btn-sm btn-outline" onclick="copyFileNameByIdx(' + idx + ')">&#128203; 复制</button>' +
+                '<button class="btn btn-primary btn-sm" onclick="downloadFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#11015; 下载</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="deleteFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#128465;</button>' +
                 '</div></td></tr>';
         });
         html += '</tbody></table></div>';
@@ -1258,12 +1256,26 @@ var currentDownloadSearchType = 'fuzzy';
     }
 
     // =================== Download Selection ===================
-    function toggleDownloadFileSelect(checkbox) {
-        var name = checkbox.getAttribute('data-name');
+    function toggleDownloadFileSelectByIdx(checkbox) {
+        var idx = parseInt(checkbox.getAttribute('data-idx'), 10);
+        var name = allDownloadFiles[idx].name;
         if (checkbox.checked) selectedDownloadFiles[name] = true;
         else delete selectedDownloadFiles[name];
         updateDownloadSelectedCount();
         updateDownloadSelectAllState();
+    }
+
+    function copyFileNameByIdx(idx) {
+        var basename = fileBasename(allDownloadFiles[idx].name);
+        copyFileName(basename);
+    }
+
+    function downloadFileByIdx(idx, bucket) {
+        downloadFile(bucket, allDownloadFiles[idx].name);
+    }
+
+    function deleteFileByIdx(idx, bucket) {
+        deleteFile(bucket, allDownloadFiles[idx].name);
     }
 
     function toggleDownloadSelectAll() {
@@ -1275,9 +1287,10 @@ var currentDownloadSearchType = 'fuzzy';
             toolbarCb.checked = isChecked;
             tableCb.checked = isChecked;
         }
-        document.querySelectorAll('#downloadFileListArea .file-checkbox[data-name]').forEach(function(cb) {
+        document.querySelectorAll('#downloadFileListArea .file-checkbox[data-idx]').forEach(function(cb) {
             cb.checked = isChecked;
-            var name = cb.getAttribute('data-name');
+            var idx = parseInt(cb.getAttribute('data-idx'), 10);
+            var name = allDownloadFiles[idx].name;
             if (isChecked) selectedDownloadFiles[name] = true;
             else delete selectedDownloadFiles[name];
         });
@@ -1395,16 +1408,33 @@ var currentDownloadSearchType = 'fuzzy';
     }
 
     // =================== 下载进度 UI ===================
+    var downloadPollInterval = null;
+
+    function startDownloadPolling() {
+        if (downloadPollInterval) return;
+        downloadPollInterval = setInterval(pollDownloadProgress, 1000);
+    }
+
+    function stopDownloadPolling() {
+        if (downloadPollInterval) {
+            clearInterval(downloadPollInterval);
+            downloadPollInterval = null;
+        }
+    }
+
     function showDownloadProgress() {
         document.getElementById('downloadProgressCard').classList.remove('hidden');
+        startDownloadPolling();
     }
 
     function updateDownloadProgressUI() {
         var keys = Object.keys(activeDownloads);
         if (keys.length === 0) {
             document.getElementById('downloadProgressCard').classList.add('hidden');
+            stopDownloadPolling();
             return;
         }
+        startDownloadPolling();
         var html = '';
         keys.forEach(function(id) {
             var info = activeDownloads[id];
@@ -1452,8 +1482,7 @@ var currentDownloadSearchType = 'fuzzy';
         });
     }
 
-    // 每 1 秒轮询下载进度
-    setInterval(pollDownloadProgress, 1000);
+    // 下载进度轮询由 startDownloadPolling()/stopDownloadPolling() 按需控制
 
     // =================== Init ===================
     // 页面初始化由脚本顶部 loadSavedConfig() 完成, 这里无需重复

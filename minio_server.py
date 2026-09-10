@@ -533,6 +533,9 @@ def list_folders():
 def list_files():
     bucket_name = request.args.get("bucket", "")
     prefix = request.args.get("prefix", "")
+    limit = int(request.args.get("limit", "2000"))
+    if limit > 10000:
+        limit = 10000
     try:
         client = get_minio_client()
         if not client:
@@ -542,7 +545,10 @@ def list_files():
 
         objects = client.list_objects(bucket_name, prefix=prefix or "", recursive=True)
         files = []
+        count = 0
         for obj in objects:
+            if count >= limit:
+                break
             if IS_MINIO_V7_API:
                 last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S") if obj.last_modified else ""
                 files.append({
@@ -567,7 +573,8 @@ def list_files():
                         "last_modified": "",
                         "etag": "",
                     })
-        return jsonify({"files": files, "bucket": bucket_name})
+            count += 1
+        return jsonify({"files": files, "bucket": bucket_name, "count": len(files), "limit": limit})
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
     except Exception as e:
@@ -697,16 +704,28 @@ def download_file():
             return jsonify({"error": "MinIO not configured."}), 400
 
         response = client.get_object(bucket_name, object_name)
-        data = response.read()
-        response.close()
-        response.release_conn()
-
+        stat = client.stat_object(bucket_name, object_name)
         filename = os.path.basename(object_name)
         content_disposition = 'attachment; filename*=UTF-8\'\'"' + filename + '"'
+
+        def generate():
+            try:
+                while True:
+                    chunk = response.read(8192)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                response.close()
+                response.release_conn()
+
         return Response(
-            data,
+            generate(),
             mimetype="application/octet-stream",
-            headers={"Content-Disposition": content_disposition, "Content-Length": str(len(data))},
+            headers={
+                "Content-Disposition": content_disposition,
+                "Content-Length": str(stat.size),
+            },
         )
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
@@ -776,6 +795,9 @@ def search_files():
     pattern = request.args.get("pattern", "").strip()
     search_type = request.args.get("type", "fuzzy")
     prefix = request.args.get("prefix", "")
+    limit = int(request.args.get("limit", "500"))
+    if limit > 5000:
+        limit = 5000
     if not bucket_name:
         return jsonify({"error": "Bucket name is required."}), 400
     if not pattern:
@@ -790,6 +812,8 @@ def search_files():
             """匹配文件名(仅比较 basename, 忽略路径前缀)."""
             basename = os.path.basename(name)
             if search_type == "regex":
+                if len(pattern) > 500:
+                    return False  # 防止超长正则导致 DoS
                 try:
                     return bool(re.search(pattern, basename, re.IGNORECASE))
                 except re.error:
@@ -803,7 +827,10 @@ def search_files():
         search_prefix = prefix if prefix else ""
         objects = client.list_objects(bucket_name, prefix=search_prefix, recursive=True)
         files = []
+        count = 0
         for obj in objects:
+            if count >= limit:
+                break
             if matches(obj.object_name):
                 if IS_MINIO_V7_API:
                     last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S") if obj.last_modified else ""
@@ -814,6 +841,7 @@ def search_files():
                         files.append({"name": obj.object_name, "size": stat.size, "last_modified": str(stat.last_modified), "etag": stat.etag})
                     except Exception:
                         pass
+                count += 1
 
         return jsonify({"files": files, "bucket": bucket_name, "pattern": pattern, "type": search_type, "count": len(files)})
     except S3Error as e:
@@ -840,18 +868,27 @@ def batch_download():
         if not client:
             return jsonify({"error": "MinIO not configured."}), 400
 
-        buf = BytesIO()
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for obj_name in object_names:
-                response = client.get_object(bucket_name, obj_name)
-                data = response.read()
-                response.close()
-                response.release_conn()
-                zf.writestr(obj_name, data)
+        def zip_generator():
+            buf = BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+                for obj_name in object_names:
+                    response = client.get_object(bucket_name, obj_name)
+                    # 使用 ZipInfo + open 实现流式写入, 避免大文件全量读入内存
+                    info = zipfile.ZipInfo(filename=obj_name)
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    with zf.open(info, "w") as zfile:
+                        while True:
+                            chunk = response.read(8192)
+                            if not chunk:
+                                break
+                            zfile.write(chunk)
+                    response.close()
+                    response.release_conn()
+            buf.seek(0)
+            yield buf.getvalue()
 
-        buf.seek(0)
         return Response(
-            buf.getvalue(),
+            zip_generator(),
             mimetype="application/zip",
             headers={"Content-Disposition": 'attachment; filename="' + bucket_name + '_batch.zip"'},
         )
