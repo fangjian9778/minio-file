@@ -596,25 +596,42 @@ def upload_file():
         except Exception:
             pass
 
-        # 读取文件数据: 使用 BytesIO 包装避免 Werkzeug 3.x stream 兼容性問題
-        file_data = file.read()
-        file_size = len(file_data)
-        data_stream = BytesIO(file_data)
+        # 获取文件大小: seek 方式避免一次性读入内存
+        try:
+            file.stream.seek(0, 2)
+            file_size = file.stream.tell()
+            file.stream.seek(0)
+        except Exception:
+            # seek 不可用(如 Werkzeug 3.x): 读取到 BytesIO
+            file_data = file.read()
+            file_size = len(file_data)
+            file.stream = BytesIO(file_data)
 
         with upload_progress_lock:
             upload_progress[upload_id] = {"current": 0, "total": file_size, "status": "uploading"}
 
-        def progress_callback(bytes_sent, total_size):
-            with upload_progress_lock:
-                upload_progress[upload_id] = {"current": bytes_sent, "total": total_size, "status": "uploading"}
-
+        # v7 SDK put_object 不再支持 progress 参数, 仅 v2 SDK 使用 callback
         extra_kwargs = {"content_type": file.content_type or "application/octet-stream"}
-        if IS_MINIO_V7_API:
-            extra_kwargs["progress"] = progress_callback
-        else:
+        if not IS_MINIO_V7_API:
+            def progress_callback(bytes_sent, total_size):
+                with upload_progress_lock:
+                    upload_progress[upload_id] = {"current": bytes_sent, "total": total_size, "status": "uploading"}
             extra_kwargs["callback"] = progress_callback
 
-        client.put_object(bucket_name, object_name, data_stream, file_size, **extra_kwargs)
+        try:
+            client.put_object(bucket_name, object_name, file.stream, file_size, **extra_kwargs)
+        except TypeError as te:
+            # put_object 签名不兼容(如 v7 不接受某些参数), 回退为只传必要参数
+            if "put_object" in str(te) or "unexpected" in str(te).lower():
+                try:
+                    if IS_MINIO_V7_API:
+                        client.put_object(bucket_name, object_name, BytesIO(file.read() if hasattr(file, 'read') else file.stream.read()), file_size)
+                    else:
+                        client.put_object(bucket_name, object_name, file.stream, file_size)
+                except Exception:
+                    raise S3Error(te)
+            else:
+                raise
 
         with upload_progress_lock:
             upload_progress[upload_id] = {"current": file_size, "total": file_size, "status": "complete"}
