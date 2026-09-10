@@ -47,12 +47,14 @@ Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl"
 [Files]
 ; 打包 PyInstaller 输出的整个程序文件夹 (递归包含 templates 等依赖)
 Source: "dist\minio_file_service\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+; 显式打包应用图标, 确保桌面/开始菜单快捷方式使用统一图标
+Source: "assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; 开始菜单快捷方式 (显式指定 exe 图标, 保证与安装包一致)
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+; 开始菜单快捷方式 (显式指定独立 .ico 文件, 确保图标与安装包一致)
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; WorkingDir: "{app}"
 ; 桌面快捷方式
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; WorkingDir: "{app}"
 
 [Run]
 ; 安装完成后可选启动

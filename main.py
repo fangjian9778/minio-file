@@ -48,6 +48,11 @@ def _wait_server_ready(port, timeout=15):
     return False
 
 
+def _resolve_port():
+    """返回当前 Flask 服务端口."""
+    return _current_port
+
+
 def _resource_path(rel):
     """解析资源文件路径: 兼容 PyInstaller 打包(frozen) 与源码运行两种方式."""
     if getattr(sys, "frozen", False):
@@ -71,6 +76,9 @@ def _run_flask(host, port):
 # 避免跳到电脑默认浏览器下载.
 
 _api_window = None
+_floating_window = None
+_is_mini_mode = False
+_current_port = 5000
 
 
 def _current_window():
@@ -85,9 +93,10 @@ def _current_window():
 class _JsApi(object):
     """通过 window.pywebview.api 暴露给前端的方法(返回 dict)."""
 
-    def download(self, bucket, object_name):
-        """保存单个文件: 弹出 SAVE 对话框选择本地路径."""
+    def download(self, bucket, object_name, download_id=""):
+        """保存单个文件: 弹出 SAVE 对话框选择本地路径, 支持进度回调."""
         from webview import SAVE_DIALOG
+        import minio_server
         filename = os.path.basename(object_name) or object_name or "download"
         w = _current_window()
         if w is None:
@@ -100,24 +109,48 @@ class _JsApi(object):
             return {"status": "cancelled"}
         save_path = result if isinstance(result, (str, bytes)) else result[0]
         try:
-            import minio_server
             client = minio_server.get_minio_client()
             if not client:
                 return {"status": "error", "message": "MinIO 未配置"}
+            # 获取文件大小
+            stat = client.stat_object(bucket, object_name)
+            total_size = stat.size
             resp = client.get_object(bucket, object_name)
             try:
+                downloaded = 0
                 with open(save_path, "wb") as fh:
                     while True:
                         chunk = resp.read(1024 * 1024)
                         if not chunk:
                             break
                         fh.write(chunk)
+                        downloaded += len(chunk)
+                        if download_id:
+                            with minio_server.download_progress_lock:
+                                minio_server.download_progress[download_id] = {
+                                    "current": downloaded,
+                                    "total": total_size,
+                                    "status": "downloading",
+                                }
             finally:
                 resp.close()
                 resp.release_conn()
+                if download_id:
+                    with minio_server.download_progress_lock:
+                        minio_server.download_progress[download_id] = {
+                            "current": total_size,
+                            "total": total_size,
+                            "status": "complete",
+                        }
             return {"status": "ok", "path": save_path}
         except Exception as e:
             _log("download error: " + str(e))
+            if download_id:
+                import minio_server
+                with minio_server.download_progress_lock:
+                    minio_server.download_progress[download_id] = {
+                        "current": 0, "total": 0, "status": "error", "error": str(e)
+                    }
             return {"status": "error", "message": str(e)}
 
     def batch_download(self, bucket, object_names):
@@ -161,9 +194,62 @@ class _JsApi(object):
             _log("batch download error: " + str(e))
             return {"status": "error", "message": str(e)}
 
+    def toggle_mini_mode(self):
+        """切换小窗模式: 缩小主窗口并打开悬浮侧边窗."""
+        global _is_mini_mode, _floating_window
+        import webview
+        _is_mini_mode = not _is_mini_mode
+        w = _current_window()
+        if w is None:
+            return {"status": "error", "message": "窗口不可用"}
+        if _is_mini_mode:
+            # 主窗口缩到最小
+            w.resize(320, 500, activate=False)
+            return {"status": "ok", "mini": True}
+        else:
+            # 恢复正常大小
+            w.resize(1200, 800, activate=False)
+            if _floating_window:
+                try:
+                    _floating_window.hide()
+                except Exception:
+                    pass
+                _floating_window = None
+            return {"status": "ok", "mini": False}
+
+    def create_floating_window(self):
+        """打开悬浮侧边窗: 仅含上传 + 下载快捷入口."""
+        global _floating_window
+        import webview
+        if _floating_window:
+            try:
+                _floating_window.show()
+            except Exception:
+                pass
+            return {"status": "ok", "message": "已显示"}
+        # 新建小窗口, 加载同一个页面#panel-upload 或 #panel-download
+        _floating_window = webview.create_window(
+            "快捷操作",
+            "http://127.0.0.1:%d/minio#floating" % _resolve_port(),
+            width=280, height=400,
+            on_top=True,
+        )
+        return {"status": "ok"}
+
+    def set_window_size(self, width, height):
+        """自定义窗口大小."""
+        w = _current_window()
+        if w is None:
+            return {"status": "error", "message": "窗口不可用"}
+        try:
+            w.resize(int(width), int(height), activate=False)
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
 
 def main():
-    global LOG_FILE, _api_window
+    global LOG_FILE, _api_window, _current_port
 
     # 日志文件: 优先 exe 目录, 不可写时回退到 %APPDATA%
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -187,6 +273,7 @@ def main():
     if port == 0:
         port = _find_free_port()
 
+    _current_port = port
     _log("Starting MinIO File Service (GUI) ... port=%d" % port)
 
     # 后台启动 Flask

@@ -28,6 +28,9 @@
             color: var(--text);
             line-height: 1.6;
             min-height: 100vh;
+            /* 允许文本选中 */
+            -webkit-user-select: text;
+            user-select: text;
         }
         /* =================== Layout =================== */
         .app-header {
@@ -61,7 +64,7 @@
             display: inline-block;
         }
         .status-dot.connected { background: var(--success); }
-        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .container { width: 100%; max-width: 1600px; margin: 0 auto; padding: 0 24px; }
         .main-content { padding: 24px 0; }
         .card {
             background: var(--card-bg);
@@ -333,6 +336,10 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
         .hidden { display: none !important; }
+        /* =================== Responsive =================== */
+        @media (min-width: 1600px) {
+            .container { max-width: 1500px; }
+        }
         @media (max-width: 640px) {
             .file-table th:nth-child(3),
             .file-table td:nth-child(3) { display: none; }
@@ -341,6 +348,13 @@
             .container { padding: 0 12px; }
             .card { padding: 16px; }
             .tabs { overflow-x: auto; }
+            .app-header h1 { font-size: 1.1rem; }
+        }
+        /* 窗口自适应: 页面宽度 < 500px 时隐藏多余信息 */
+        @media (max-width: 500px) {
+            .status-badge { display: none; }
+            .card-title { font-size: 1rem; }
+            .btn-group { flex-wrap: wrap; }
         }
         footer {
             text-align: center;
@@ -491,6 +505,50 @@
         .folder-dropdown-item:hover { background: var(--bg); }
         .folder-dropdown-item .folder-icon { font-size: 1rem; }
         /* =================== Rename Input =================== */
+        /* =================== Floating / Mini Mode =================== */
+        body.floating-mode .tabs { display: none !important; }
+        body.floating-mode #panel-config { display: none !important; }
+        body.floating-mode .container { max-width: 100%; padding: 0 12px; }
+        body.floating-mode .app-header { padding: 8px 0; }
+        body.floating-mode .app-header h1 { font-size: 1rem; }
+        /* 侧边栏控制按钮 */
+        .window-controls {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        .window-ctrl-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(255,255,255,.3);
+            background: rgba(255,255,255,.15);
+            color: white;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .85rem;
+            transition: background .2s;
+        }
+        .window-ctrl-btn:hover { background: rgba(255,255,255,.3); }
+        /* Download progress bar */
+        .download-progress-area {
+            margin-top: 16px;
+        }
+        .download-progress-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .download-progress-item:last-child { border-bottom: none; }
+        .download-progress-item .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; }
+        .download-progress-item .progress-mini { width: 120px; height: 6px; background: #e8eaed; border-radius: 3px; overflow: hidden; }
+        .download-progress-item .progress-mini-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #6c63ff); border-radius: 3px; transition: width .3s; }
+        .download-progress-item .progress-text { font-size: .8rem; color: var(--text-secondary); min-width: 40px; text-align: right; }
+        /* =================== Rename Input =================== */
         .rename-input {
             padding: 4px 8px;
             border: 1px solid var(--primary);
@@ -506,9 +564,15 @@
 <header class="app-header">
     <div class="container">
         <h1>文件管理服务</h1>
-        <div class="status-badge">
-            <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">未连接</span>
+        <div style="display:flex;align-items:center;gap:12px">
+            <div class="window-controls">
+                <button class="window-ctrl-btn" title="小窗/恢复" onclick="toggleMiniMode()">&#9635;</button>
+                <button class="window-ctrl-btn" title="悬浮窗" onclick="openFloatingWindow()">&#9776;</button>
+            </div>
+            <div class="status-badge">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">未连接</span>
+            </div>
         </div>
     </div>
 </header>
@@ -619,6 +683,7 @@
                     <div class="progress-bar-container">
                         <div class="progress-bar" id="uploadProgressBar" style="width:0%"></div>
                     </div>
+                    <div id="uploadCurrentFile" style="font-size:.85rem;color:var(--text-secondary);margin-top:8px"></div>
                 </div>
             </div>
 
@@ -664,6 +729,11 @@
                         <button class="btn btn-sm btn-primary" onclick="searchDownloadFiles()">&#128269; 搜索</button>
                     </div>
                 </div>
+                <!-- Download Progress Area -->
+                <div class="card hidden" id="downloadProgressCard">
+                    <div class="card-title"><span class="icon">&#11015;</span> 下载进度</div>
+                    <div id="downloadProgressList"></div>
+                </div>
                 <!-- Selection Bar -->
                 <div class="select-all-bar hidden" id="downloadSelectAllBar">
                     <label class="form-check">
@@ -686,7 +756,7 @@
 </main>
 
 <footer>
-    <p>MinIO File Management &bull; Powered by Python + Flask + MinIO SDK</p>
+    <p>MinIO 文件管理服务 &bull; 对象存储文件管理工具 &bull; &copy; 辽宁自有</p>
 </footer>
 
 <script>
@@ -700,6 +770,20 @@
 var currentDownloadSearchType = 'fuzzy';
     var downloadSearchTimer = null;
     var downloadLoadTimer = null;
+    var activeDownloads = {};  // download_id -> {name, total, start}
+
+    // =================== Floating Mode Detection ===================
+    (function() {
+        if (window.location.hash === '#floating') {
+            document.body.classList.add('floating-mode');
+            // 自动切到下载 tab
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-panel').forEach(function(p) { p.classList.remove('active'); });
+            document.querySelector('[data-tab="upload"]').classList.add('active');
+            document.getElementById('panel-upload').classList.add('active');
+            refreshBuckets('upload');
+        }
+    })();
 
     // =================== Tab Navigation ===================
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
@@ -768,6 +852,13 @@ var currentDownloadSearchType = 'fuzzy';
         var k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
         var i = Math.floor(Math.log(bytes) / Math.log(k));
         return (bytes / Math.pow(k, i)).toFixed(i > 0 ? 1 : 0) + ' ' + sizes[i];
+    }
+
+    function fileBasename(fullpath) {
+        /* 从完整路径提取文件名, e.g. "folder/sub/file.txt" -> "file.txt" */
+        if (!fullpath) return '';
+        var parts = fullpath.split('/');
+        return parts[parts.length - 1] || fullpath;
     }
 
     function getFileIcon(name) {
@@ -1030,11 +1121,13 @@ var currentDownloadSearchType = 'fuzzy';
             if (index >= totalFiles) {
                 document.getElementById('batchUploadBtn').disabled = false;
                 document.getElementById('batchUploadBtn').innerHTML = '&#11015; 批量上传';
+                document.getElementById('uploadCurrentFile').textContent = '';
                 if (failedFiles === 0) { showAlert('success', '全部 ' + totalFiles + ' 个文件上传成功！'); clearUploadList(); }
                 else { showAlert('error', '上传完成: ' + (totalFiles - failedFiles) + ' 成功, ' + failedFiles + ' 失败'); }
                 return;
             }
             var item = selectedUploadFiles[index];
+            document.getElementById('uploadCurrentFile').textContent = '正在上传 (' + (index + 1) + '/' + totalFiles + '): ' + item.name;
             var formData = new FormData();
             formData.append('file', item.file);
             formData.append('bucket', bucket);
@@ -1052,11 +1145,28 @@ var currentDownloadSearchType = 'fuzzy';
             });
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
-                    if (xhr.status !== 200) failedFiles++;
+                    if (xhr.status !== 200) {
+                        failedFiles++;
+                        try {
+                            var errResp = JSON.parse(xhr.responseText);
+                            showAlert('error', item.name + ' 上传失败: ' + (errResp.error || xhr.statusText));
+                        } catch(e) {
+                            showAlert('error', item.name + ' 上传失败 (HTTP ' + xhr.status + ')');
+                        }
+                    }
                     uploadNext(index + 1);
                 }
             };
-            xhr.onerror = function() { failedFiles++; uploadNext(index + 1); };
+            xhr.onerror = function() {
+                failedFiles++;
+                showAlert('error', item.name + ' 上传失败: 网络连接错误');
+                uploadNext(index + 1);
+            };
+            xhr.ontimeout = function() {
+                failedFiles++;
+                showAlert('error', item.name + ' 上传超时: 文件过大或网络缓慢');
+                uploadNext(index + 1);
+            };
             xhr.send(formData);
         }
         uploadNext(0);
@@ -1146,10 +1256,12 @@ var currentDownloadSearchType = 'fuzzy';
     function searchDownloadFiles() {
         var bucket = document.getElementById('downloadBucket').value;
         var pattern = document.getElementById('downloadSearchInput').value.trim();
+        var prefix = document.getElementById('downloadPrefix').value.trim();
         updateDownloadPathBar();
         if (!bucket) { showAlert('error', '请先选择桶'); return; }
         if (!pattern) { loadDownloadFiles(); return; }
         var query = '?bucket=' + encodeURIComponent(bucket) + '&pattern=' + encodeURIComponent(pattern) + '&type=' + currentDownloadSearchType;
+        if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
         document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">搜索中...</p></div>';
         apiRequest('GET', '/search' + query, null, function(err, resp) {
             if (err) {
@@ -1177,14 +1289,16 @@ var currentDownloadSearchType = 'fuzzy';
             '<th><input type="checkbox" class="file-checkbox" onchange="toggleDownloadSelectAll()"></th>' +
             '<th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead><tbody>';
         files.forEach(function(f) {
+            var basename = fileBasename(f.name);
+            var icon = getFileIcon(basename);
             html += '<tr>' +
                 '<td><input type="checkbox" class="file-checkbox" data-name="' + escapeAttr(f.name) + '" onchange="toggleDownloadFileSelect(this)"></td>' +
-                '<td><div class="file-name"><span class="file-icon">' + getFileIcon(f.name) + '</span>' +
-                '<span class="name-text" title="点击复制文件名" style="cursor:pointer" onclick="copyFileName(\'' + escapeAttr(f.name) + '\')">' + escapeHtml(f.name) + '</span></div></td>' +
+                '<td><div class="file-name"><span class="file-icon">' + icon + '</span>' +
+                '<span class="name-text" title="' + escapeHtml(f.name) + ' (点击复制文件名)" style="cursor:pointer" onclick="copyFileName(\'' + escapeAttr(basename) + '\')">' + escapeHtml(basename) + '</span></div></td>' +
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
-                '<button class="btn btn-sm btn-outline" onclick="copyFileName(\'' + escapeAttr(f.name) + '\')">&#128203; 复制</button>' +
+                '<button class="btn btn-sm btn-outline" onclick="copyFileName(\'' + escapeAttr(basename) + '\')">&#128203; 复制</button>' +
                 '<button class="btn btn-primary btn-sm" onclick="downloadFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#11015; 下载</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="deleteFile(\'' + escapeAttr(bucket) + '\',\'' + escapeAttr(f.name) + '\')">&#128465;</button>' +
                 '</div></td></tr>';
@@ -1256,11 +1370,22 @@ var currentDownloadSearchType = 'fuzzy';
     }
 
     function downloadFile(bucket, objectName) {
+        var downloadId = 'dl-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
+        var basename = fileBasename(objectName);
+        activeDownloads[downloadId] = { name: basename, start: Date.now() };
+        showDownloadProgress();
         if (hasInAppApi()) {
-            showAlert('info', '正在保存，请选择保存位置...');
-            window.pywebview.api.download(bucket, objectName).then(function(res) {
-                if (res.status === 'ok') showAlert('success', '已保存到: ' + res.path);
-                else if (res.status !== 'cancelled') showAlert('error', '下载失败: ' + res.message);
+            showAlert('info', '正在保存 "' + basename + '"，请选择保存位置...');
+            window.pywebview.api.download(bucket, objectName, downloadId).then(function(res) {
+                if (res.status === 'ok') {
+                    showAlert('success', '已保存到: ' + res.path);
+                    delete activeDownloads[downloadId];
+                    updateDownloadProgressUI();
+                } else if (res.status !== 'cancelled') {
+                    showAlert('error', '下载失败: ' + res.message);
+                    delete activeDownloads[downloadId];
+                    updateDownloadProgressUI();
+                }
             });
         } else {
             window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
@@ -1317,6 +1442,94 @@ var currentDownloadSearchType = 'fuzzy';
         apiRequest('POST', '/delete', { bucket: bucket, object_name: objectName }, function(err, resp) {
             if (err) showAlert('error', '删除失败: ' + err);
             else { showAlert('success', '文件已删除'); loadDownloadFiles(); }
+        });
+    }
+
+    // =================== 下载进度 UI ===================
+    function showDownloadProgress() {
+        document.getElementById('downloadProgressCard').classList.remove('hidden');
+    }
+
+    function updateDownloadProgressUI() {
+        var keys = Object.keys(activeDownloads);
+        if (keys.length === 0) {
+            document.getElementById('downloadProgressCard').classList.add('hidden');
+            return;
+        }
+        var html = '';
+        keys.forEach(function(id) {
+            var info = activeDownloads[id];
+            html += '<div class="download-progress-item">' +
+                '<span class="file-name" title="' + escapeHtml(info.name) + '">' + escapeHtml(info.name) + '</span>' +
+                '<div class="progress-mini"><div class="progress-mini-fill" id="dl-bar-' + id + '" style="width:0%"></div></div>' +
+                '<span class="progress-text" id="dl-text-' + id + '">等待中</span>' +
+                '</div>';
+        });
+        document.getElementById('downloadProgressList').innerHTML = html;
+    }
+
+    function pollDownloadProgress() {
+        var keys = Object.keys(activeDownloads);
+        if (keys.length === 0) return;
+        keys.forEach(function(id) {
+            var info = activeDownloads[id];
+            if (info.done) return;
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '/minio/api/download/progress?download_id=' + id, true);
+            xhr.timeout = 3000;
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        var bar = document.getElementById('dl-bar-' + id);
+                        var text = document.getElementById('dl-text-' + id);
+                        if (data.total > 0 && bar && text) {
+                            var pct = Math.round((data.current / data.total) * 100);
+                            bar.style.width = pct + '%';
+                            text.textContent = pct + '%';
+                        }
+                        if (data.status === 'complete' || data.status === 'error') {
+                            info.done = true;
+                            if (text) {
+                                text.textContent = data.status === 'complete' ? '完成' : ('失败: ' + (data.error || ''));
+                                text.style.color = data.status === 'complete' ? 'var(--success)' : 'var(--danger)';
+                            }
+                            setTimeout(function() { delete activeDownloads[id]; updateDownloadProgressUI(); }, 3000);
+                        }
+                    } catch(e) {}
+                }
+            };
+            xhr.send();
+        });
+    }
+
+    // 每 1 秒轮询下载进度
+    setInterval(pollDownloadProgress, 1000);
+
+    // =================== 窗口控制 ===================
+    function hasPywebviewApi() {
+        return !!(window.pywebview && window.pywebview.api);
+    }
+
+    function toggleMiniMode() {
+        if (!hasPywebviewApi()) { showAlert('info', '小窗模式仅在桌面版可用'); return; }
+        window.pywebview.api.toggle_mini_mode().then(function(res) {
+            if (res.status === 'ok') {
+                if (res.mini) {
+                    document.body.classList.add('floating-mode');
+                    showAlert('success', '已切换到小窗模式');
+                } else {
+                    document.body.classList.remove('floating-mode');
+                    showAlert('success', '已恢复正常窗口');
+                }
+            }
+        });
+    }
+
+    function openFloatingWindow() {
+        if (!hasPywebviewApi()) { showAlert('info', '悬浮窗仅在桌面版可用'); return; }
+        window.pywebview.api.create_floating_window().then(function(res) {
+            if (res.status === 'ok') showAlert('success', '悬浮窗已打开');
         });
     }
 

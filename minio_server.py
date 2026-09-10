@@ -117,6 +117,7 @@ def decrypt_secret(token):
 
 
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024  # 512 MB 上传限制
 CORS(app)
 bp = Blueprint("main", __name__, url_prefix="/minio")
 
@@ -138,6 +139,8 @@ path_config = {}
 minio_client = None
 upload_progress = {}
 upload_progress_lock = threading.Lock()
+download_progress = {}
+download_progress_lock = threading.Lock()
 
 def _resolve_config_file():
     """返回配置文件路径: 优先 exe 所在目录(便携模式), 目录不可写时回退到 %APPDATA%(安装模式)."""
@@ -586,9 +589,17 @@ def upload_file():
         if not client:
             return jsonify({"error": "MinIO not configured."}), 400
 
-        file.stream.seek(0, 2)
-        file_size = file.stream.tell()
-        file.stream.seek(0)
+        # 检查桶是否存在
+        try:
+            if not client.bucket_exists(bucket_name):
+                return jsonify({"error": "Bucket '%s' does not exist." % bucket_name}), 400
+        except Exception:
+            pass
+
+        # 读取文件数据: 使用 BytesIO 包装避免 Werkzeug 3.x stream 兼容性問題
+        file_data = file.read()
+        file_size = len(file_data)
+        data_stream = BytesIO(file_data)
 
         with upload_progress_lock:
             upload_progress[upload_id] = {"current": 0, "total": file_size, "status": "uploading"}
@@ -603,7 +614,7 @@ def upload_file():
         else:
             extra_kwargs["callback"] = progress_callback
 
-        client.put_object(bucket_name, object_name, file.stream, file_size, **extra_kwargs)
+        client.put_object(bucket_name, object_name, data_stream, file_size, **extra_kwargs)
 
         with upload_progress_lock:
             upload_progress[upload_id] = {"current": file_size, "total": file_size, "status": "complete"}
@@ -615,13 +626,15 @@ def upload_file():
             "size": file_size,
         })
     except S3Error as e:
+        err_msg = _s3_error_message(e)
         with upload_progress_lock:
-            upload_progress[upload_id] = {"current": 0, "total": 0, "status": "error", "error": _s3_error_message(e)}
-        return jsonify({"error": "Upload failed: " + _s3_error_message(e)}), 500
+            upload_progress[upload_id] = {"current": 0, "total": 0, "status": "error", "error": err_msg}
+        return jsonify({"error": "S3 Error: " + err_msg}), 500
     except Exception as e:
+        err_msg = str(e)
         with upload_progress_lock:
-            upload_progress[upload_id] = {"current": 0, "total": 0, "status": "error", "error": str(e)}
-        return jsonify({"error": "Upload failed: " + str(e)}), 500
+            upload_progress[upload_id] = {"current": 0, "total": 0, "status": "error", "error": err_msg}
+        return jsonify({"error": "Upload failed: " + err_msg}), 500
 
 
 @bp.route("/api/upload/progress", methods=["GET"])
@@ -629,6 +642,14 @@ def get_upload_progress():
     upload_id = request.args.get("upload_id", "")
     with upload_progress_lock:
         progress = upload_progress.get(upload_id, {"status": "not_found"})
+    return jsonify(progress)
+
+
+@bp.route("/api/download/progress", methods=["GET"])
+def get_download_progress():
+    download_id = request.args.get("download_id", "")
+    with download_progress_lock:
+        progress = download_progress.get(download_id, {"status": "not_found"})
     return jsonify(progress)
 
 
@@ -725,6 +746,7 @@ def search_files():
     bucket_name = request.args.get("bucket", "")
     pattern = request.args.get("pattern", "").strip()
     search_type = request.args.get("type", "fuzzy")
+    prefix = request.args.get("prefix", "")
     if not bucket_name:
         return jsonify({"error": "Bucket name is required."}), 400
     if not pattern:
@@ -736,6 +758,7 @@ def search_files():
             return jsonify({"error": "MinIO not configured."}), 400
 
         def matches(name):
+            """匹配文件名(仅比较 basename, 忽略路径前缀)."""
             basename = os.path.basename(name)
             if search_type == "regex":
                 try:
@@ -747,7 +770,9 @@ def search_files():
             else:
                 return pattern.lower() in basename.lower()
 
-        objects = client.list_objects(bucket_name, recursive=True)
+        # 如果提供了 prefix, 只搜索该目录下; 否则搜索整个桶
+        search_prefix = prefix if prefix else ""
+        objects = client.list_objects(bucket_name, prefix=search_prefix, recursive=True)
         files = []
         for obj in objects:
             if matches(obj.object_name):
@@ -890,7 +915,7 @@ def _handle_io_error(e):
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
-    return jsonify({"error": "Request entity too large."}), 413
+    return jsonify({"error": "文件过大，最大支持 512 MB."}), 413
 
 
 # 包装 wsgi_app, 捕获 socket 关闭导致的写入异常
