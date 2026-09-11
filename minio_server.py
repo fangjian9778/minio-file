@@ -621,8 +621,14 @@ def upload_file():
             file_size = file.stream.tell()
             file.stream.seek(0)
         except Exception:
-            # seek 不可用(如 Werkzeug 3.x): 读取到 BytesIO
-            file_data = file.read()
+            # seek 不可用: 分块读取到 BytesIO
+            chunks = []
+            while True:
+                chunk = file.stream.read(8192)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+            file_data = b"".join(chunks)
             file_size = len(file_data)
             file.stream = BytesIO(file_data)
 
@@ -640,12 +646,21 @@ def upload_file():
         try:
             client.put_object(bucket_name, object_name, file.stream, file_size, **extra_kwargs)
         except TypeError as te:
-            # put_object 签名不兼容(如 v7 不接受某些参数), 回退为只传必要参数
+            # put_object 签名不兼容(如 v7 不接受某些参数), 回退为分块上传
             if "put_object" in str(te) or "unexpected" in str(te).lower():
                 try:
                     if IS_MINIO_V7_API:
-                        client.put_object(bucket_name, object_name, BytesIO(file.read() if hasattr(file, 'read') else file.stream.read()), file_size)
+                        # v7 SDK: 分块读取上传
+                        file.stream.seek(0)
+                        def upload_generator():
+                            while True:
+                                chunk = file.stream.read(8192)
+                                if not chunk:
+                                    break
+                                yield chunk
+                        client.put_object(bucket_name, object_name, upload_generator(), file_size)
                     else:
+                        file.stream.seek(0)
                         client.put_object(bucket_name, object_name, file.stream, file_size)
                 except Exception:
                     raise S3Error(te)
