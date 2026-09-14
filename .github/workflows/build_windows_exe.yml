@@ -1,4 +1,4 @@
-name: Build Windows EXE with Nuitka
+name: Build Windows EXE with PyInstaller
 
 on:
   workflow_dispatch:
@@ -8,13 +8,14 @@ on:
       - 'main.py'
       - 'templates/**'
       - 'requirements.txt'
+      - 'minio_server.spec'
       - 'installer.iss'
       - '.github/workflows/**'
 
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 90
+    timeout-minutes: 40
 
     steps:
       - name: Checkout code
@@ -31,38 +32,15 @@ jobs:
           python --version
           python -c "import struct; print('Architecture:', struct.calcsize('P') * 8, 'bit')"
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
           pip install -r requirements.txt
+          pip install pyinstaller
 
-      - name: Install Nuitka
+      - name: Build EXE with PyInstaller
         run: |
-          pip install "nuitka[full]"
-
-      - name: Build EXE with Nuitka (simplified)
-        uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: x86
-          run: |
-            python -m nuitka --standalone --include-package=minio --include-package=flask --include-package=flask_cors --include-data-dir=templates=templates --include-data-dir=assets=assets --windows-icon-from-ico=assets/app.ico --output-dir=dist/minio_file_service --output-filename=minio_file_service main.py
-
-      - name: Show Nuitka build logs
-        if: always()
-        shell: pwsh
-        run: |
-          Get-ChildItem "dist\minio_file_service" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName, Length
-          if (Test-Path "dist\minio_file_service\*.log") {
-            Get-Content "dist\minio_file_service\*.log" -ErrorAction SilentlyContinue
-          }
-
-      - name: Rename exe if needed
-        shell: pwsh
-        run: |
-          if (Test-Path "dist\minio_file_service\main.exe") {
-            Rename-Item "dist\minio_file_service\main.exe" "minio_file_service.exe" -Force
-          }
-          Get-ChildItem "dist\minio_file_service" -Filter "*.exe" | ForEach-Object { Write-Host $_.Name }
+          pyinstaller --clean minio_server.spec
 
       - name: Install Inno Setup
         shell: pwsh
@@ -78,10 +56,10 @@ jobs:
           & $iscc.FullName installer.iss
           if (-not $?) { exit 1 }
 
-      - name: Upload standalone folder artifact
+      - name: Upload folder artifact
         uses: actions/upload-artifact@v4
         with:
-          name: minio-file-service-standalone
+          name: minio-file-service-win32
           path: dist/minio_file_service/
           retention-days: 30
 
