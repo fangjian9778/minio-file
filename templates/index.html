@@ -1072,10 +1072,23 @@
             }
             document.getElementById('uploadBucket').innerHTML = options;
             document.getElementById('downloadBucket').innerHTML = options;
-            var savedBucket = localStorage.getItem('last_bucket');
-            if (savedBucket) {
-                document.getElementById('uploadBucket').value = savedBucket;
-                document.getElementById('downloadBucket').value = savedBucket;
+            // 恢复上传桶和文件夹路径
+            var savedUploadBucket = localStorage.getItem('last_upload_bucket');
+            if (savedUploadBucket) {
+                document.getElementById('uploadBucket').value = savedUploadBucket;
+                var savedUploadPrefix = localStorage.getItem('upload_prefix');
+                if (savedUploadPrefix) {
+                    uploadCurrentPrefix = savedUploadPrefix;
+                }
+            }
+            // 恢复下载桶和文件夹路径
+            var savedDownloadBucket = localStorage.getItem('last_download_bucket');
+            if (savedDownloadBucket) {
+                document.getElementById('downloadBucket').value = savedDownloadBucket;
+                var savedDownloadPrefix = localStorage.getItem('download_prefix');
+                if (savedDownloadPrefix) {
+                    downloadCurrentPrefix = savedDownloadPrefix;
+                }
             }
             updateUploadPathBar();
             updateDownloadPathBar();
@@ -1085,8 +1098,9 @@
     // =================== Upload Bucket Change ===================
     function onUploadBucketChange() {
         var bucket = document.getElementById('uploadBucket').value;
-        localStorage.setItem('last_bucket', bucket);
+        localStorage.setItem('last_upload_bucket', bucket);
         uploadCurrentPrefix = '';
+        localStorage.removeItem('upload_prefix');
         updateUploadPathBar();
         document.getElementById('uploadFolderBrowser').style.display = 'none';
     }
@@ -1115,6 +1129,7 @@
         } else {
             uploadCurrentPrefix = path;
         }
+        localStorage.setItem('upload_prefix', uploadCurrentPrefix);
         updateUploadPathBar();
         loadUploadFolders();
     }
@@ -1125,6 +1140,7 @@
         } else {
             uploadCurrentPrefix = folder;
         }
+        localStorage.setItem('upload_prefix', uploadCurrentPrefix);
         updateUploadPathBar();
         loadUploadFolders();
     }
@@ -1153,6 +1169,7 @@
         } else {
             downloadCurrentPrefix = path;
         }
+        localStorage.setItem('download_prefix', downloadCurrentPrefix);
         updateDownloadPathBar();
         loadDownloadFolders();
     }
@@ -1163,6 +1180,7 @@
         } else {
             downloadCurrentPrefix = folder;
         }
+        localStorage.setItem('download_prefix', downloadCurrentPrefix);
         updateDownloadPathBar();
         loadDownloadFolders();
     }
@@ -1344,8 +1362,9 @@
     // =================== MinIO Download ===================
     function onDownloadBucketChange() {
         var bucket = document.getElementById('downloadBucket').value;
-        localStorage.setItem('last_bucket', bucket);
+        localStorage.setItem('last_download_bucket', bucket);
         downloadCurrentPrefix = '';
+        localStorage.removeItem('download_prefix');
         downloadCurrentSearch = '';
         currentDownloadPage = 1;
         updateDownloadPathBar();
