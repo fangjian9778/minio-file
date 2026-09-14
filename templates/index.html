@@ -449,6 +449,101 @@
         .breadcrumb-item:hover { text-decoration: underline; }
         .breadcrumb-item.active { color: var(--text); cursor: default; font-weight: 600; }
         .breadcrumb-sep { color: var(--text-secondary); font-size: .8rem; }
+        /* =================== Folder Browser =================== */
+        .folder-browser {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 12px;
+            margin-top: 8px;
+        }
+        .folder-browser-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        .folder-browser-title {
+            font-size: .9rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+        .folder-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 8px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .folder-card {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all .15s;
+            font-size: .85rem;
+        }
+        .folder-card:hover {
+            border-color: var(--primary);
+            background: #f0f6ff;
+        }
+        .folder-card .folder-icon {
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        .folder-card .folder-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+        /* =================== Pagination =================== */
+        .pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .pagination-info {
+            font-size: .85rem;
+            color: var(--text-secondary);
+        }
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .pagination-controls select {
+            padding: 4px 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: .85rem;
+        }
+        .pagination-btn {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--bg);
+            border-color: var(--primary);
+        }
+        .pagination-btn:disabled {
+            opacity: .5;
+            cursor: not-allowed;
+        }
+        .pagination-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
         /* =================== File List Item =================== */
         .file-list-item {
             display: flex;
@@ -595,7 +690,6 @@
             <!-- Upload Section -->
             <div class="card">
                 <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件上传</div>
-                <div class="path-bar" id="uploadPathBar">当前路径: <b>未选择桶</b></div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="uploadBucket">目标桶 (Bucket)</label>
@@ -606,16 +700,16 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="uploadFolderPath">上传路径</label>
-                        <div class="folder-dropdown" id="uploadFolderDropdown">
-                            <div class="path-input-group">
-                                <input type="text" class="form-control" id="uploadFolderPath"
-                                       placeholder="例如: uploads/2024/" oninput="updateUploadPathBar()">
-                                <button class="btn btn-sm btn-primary" onclick="loadUploadFolders()">&#128193; 浏览</button>
-                            </div>
-                            <div class="folder-dropdown-menu" id="uploadFolderMenu"></div>
-                        </div>
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" onclick="loadUploadFolders()">&#128193; 浏览文件夹</button>
                     </div>
+                </div>
+                <!-- Upload Path Info -->
+                <div class="path-bar" id="uploadPathBar">当前路径: <b>未选择桶</b></div>
+                <!-- Upload Folder Browser -->
+                <div id="uploadFolderBrowser" class="folder-browser" style="display:none">
+                    <div class="breadcrumb" id="uploadBreadcrumb"></div>
+                    <div class="folder-grid" id="uploadFolderGrid"></div>
                 </div>
                 <!-- Multi-file Drop zone -->
                 <div class="upload-zone" id="uploadZone" onclick="document.getElementById('multiFileInput').click()">
@@ -654,7 +748,6 @@
         <div class="tab-panel" id="panel-download">
             <div class="card">
                 <div class="card-title"><span class="icon">&#11015;</span> MinIO 文件下载</div>
-                <div class="path-bar" id="downloadPathBar">当前路径: <b>未选择桶</b></div>
                 <div class="grid-2">
                     <div class="form-group">
                         <label for="downloadBucket">选择桶 (Bucket)</label>
@@ -665,35 +758,30 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="downloadPrefix">文件夹前缀</label>
-                        <div class="folder-dropdown" id="downloadFolderDropdown">
-                            <div class="path-input-group">
-                                <input type="text" class="form-control" id="downloadPrefix"
-                                       placeholder="例如: uploads/2024/" oninput="debounceLoadDownloadFiles(); updateDownloadPathBar()">
-                                <button class="btn btn-sm btn-primary" onclick="loadDownloadFolders()">&#128193; 浏览</button>
-                            </div>
-                            <div class="folder-dropdown-menu" id="downloadFolderMenu"></div>
-                        </div>
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" onclick="loadDownloadFolders()">&#128193; 浏览文件夹</button>
                     </div>
                 </div>
-                <!-- Search -->
-                <div class="form-group">
+                <!-- Download Path Info -->
+                <div class="path-bar" id="downloadPathBar">当前路径: <b>未选择桶</b></div>
+                <!-- Download Folder Browser -->
+                <div id="downloadFolderBrowser" class="folder-browser" style="display:none">
+                    <div class="breadcrumb" id="downloadBreadcrumb"></div>
+                    <div class="folder-grid" id="downloadFolderGrid"></div>
+                </div>
+                <!-- Search & Query -->
+                <div class="form-group" style="margin-top:12px">
                     <label>文件搜索</label>
                     <div class="search-bar">
                         <input type="text" class="form-control" id="downloadSearchInput"
-                               placeholder="输入文件名进行搜索..." oninput="debounceDownloadSearch()">
+                               placeholder="输入文件名搜索 (留空则查询全部)...">
                         <div class="search-type-group">
                             <button class="search-type-btn active" data-type="fuzzy" onclick="setDownloadSearchType('fuzzy')">模糊</button>
                             <button class="search-type-btn" data-type="wildcard" onclick="setDownloadSearchType('wildcard')">通配符</button>
                             <button class="search-type-btn" data-type="regex" onclick="setDownloadSearchType('regex')">正则</button>
                         </div>
-                        <button class="btn btn-sm btn-primary" onclick="searchDownloadFiles()">&#128269; 搜索</button>
+                        <button class="btn btn-sm btn-primary" onclick="loadDownloadFiles()">&#128269; 查询</button>
                     </div>
-                </div>
-                <!-- Download Progress Area -->
-                <div class="card hidden" id="downloadProgressCard">
-                    <div class="card-title"><span class="icon">&#11015;</span> 下载进度</div>
-                    <div id="downloadProgressList"></div>
                 </div>
                 <!-- Selection Bar -->
                 <div class="select-all-bar hidden" id="downloadSelectAllBar">
@@ -707,7 +795,26 @@
                     </div>
                 </div>
                 <div id="downloadFileListArea">
-                    <div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶以查看文件列表</p></div>
+                    <div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶后点击查询查看文件列表</p></div>
+                </div>
+                <!-- Pagination -->
+                <div class="pagination" id="downloadPagination" style="display:none">
+                    <div class="pagination-info" id="downloadPaginationInfo"></div>
+                    <div class="pagination-controls">
+                        <span style="font-size:.85rem;color:var(--text-secondary)">每页</span>
+                        <select id="downloadPageSize" onchange="onDownloadPageSizeChange()">
+                            <option value="20">20</option>
+                            <option value="50" selected>50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                        </select>
+                        <span style="font-size:.85rem;color:var(--text-secondary)">条</span>
+                        <button class="pagination-btn" id="downloadPageFirst" onclick="goDownloadPage(1)">&#8810;</button>
+                        <button class="pagination-btn" id="downloadPagePrev" onclick="goDownloadPage(currentDownloadPage - 1)">&#8811; 上一页</button>
+                        <span id="downloadPageNum" style="font-size:.85rem;min-width:60px;text-align:center"></span>
+                        <button class="pagination-btn" id="downloadPageNext" onclick="goDownloadPage(currentDownloadPage + 1)">下一页 &#8812;</button>
+                        <button class="pagination-btn" id="downloadPageLast" onclick="goDownloadPage(totalDownloadPages)">&#8811;</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -728,10 +835,21 @@
     var progressTimer = null;
     var allDownloadFiles = [];
     var selectedDownloadFiles = {};
-var currentDownloadSearchType = 'fuzzy';
+    var currentDownloadSearchType = 'fuzzy';
     var downloadSearchTimer = null;
     var downloadLoadTimer = null;
     var activeDownloads = {};  // download_id -> {name, total, start}
+
+    // Upload folder browser state
+    var uploadCurrentPrefix = '';
+
+    // Download folder browser state
+    var downloadCurrentPrefix = '';
+    var downloadCurrentSearch = '';
+    var downloadCurrentTotal = 0;
+    var currentDownloadPage = 1;
+    var downloadPageSize = 50;
+    var totalDownloadPages = 1;
 
     // =================== Tab Navigation ===================
     document.querySelectorAll('.tab-btn').forEach(function(btn) {
@@ -754,15 +872,60 @@ var currentDownloadSearchType = 'fuzzy';
     // =================== 当前路径显示 ===================
     function updateUploadPathBar() {
         var bucket = document.getElementById('uploadBucket').value;
-        var path = document.getElementById('uploadFolderPath').value.trim().replace(/^\/+/, '');
+        var path = uploadCurrentPrefix.trim().replace(/^\/+/, '');
         var full = bucket ? (bucket + (path ? '/' + path : '')) : '未选择桶';
         document.getElementById('uploadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
     }
     function updateDownloadPathBar() {
         var bucket = document.getElementById('downloadBucket').value;
-        var prefix = document.getElementById('downloadPrefix').value.trim().replace(/^\/+/, '');
+        var prefix = downloadCurrentPrefix.trim().replace(/^\/+/, '');
         var full = bucket ? (bucket + (prefix ? '/' + prefix : '')) : '未选择桶';
         document.getElementById('downloadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
+    }
+
+    // =================== Breadcrumb ===================
+    function renderUploadBreadcrumb(prefix) {
+        var container = document.getElementById('uploadBreadcrumb');
+        if (!prefix) {
+            container.innerHTML = '<span class="breadcrumb-item active">&#128193; 桶根目录</span>';
+            return;
+        }
+        var parts = prefix.replace(/\/+$/, '').split('/').filter(function(p) { return p; });
+        var html = '<span class="breadcrumb-item" onclick="navigateUploadBreadcrumb()">&#128193; 桶根目录</span>';
+        var path = '';
+        parts.forEach(function(part, idx) {
+            path += (path ? '/' : '') + part;
+            var isLast = (idx === parts.length - 1);
+            html += '<span class="breadcrumb-sep">›</span>';
+            if (!isLast) {
+                html += '<span class="breadcrumb-item" onclick="navigateUploadBreadcrumb(\'' + escapeAttr(path) + '\')">' + escapeHtml(part) + '</span>';
+            } else {
+                html += '<span class="breadcrumb-item active">' + escapeHtml(part) + '</span>';
+            }
+        });
+        container.innerHTML = html;
+    }
+
+    function renderDownloadBreadcrumb(prefix) {
+        var container = document.getElementById('downloadBreadcrumb');
+        if (!prefix) {
+            container.innerHTML = '<span class="breadcrumb-item active">&#128193; 桶根目录</span>';
+            return;
+        }
+        var parts = prefix.replace(/\/+$/, '').split('/').filter(function(p) { return p; });
+        var html = '<span class="breadcrumb-item" onclick="navigateDownloadBreadcrumb()">&#128193; 桶根目录</span>';
+        var path = '';
+        parts.forEach(function(part, idx) {
+            path += (path ? '/' : '') + part;
+            var isLast = (idx === parts.length - 1);
+            html += '<span class="breadcrumb-sep">›</span>';
+            if (!isLast) {
+                html += '<span class="breadcrumb-item" onclick="navigateDownloadBreadcrumb(\'' + escapeAttr(path) + '\')">' + escapeHtml(part) + '</span>';
+            } else {
+                html += '<span class="breadcrumb-item active">' + escapeHtml(part) + '</span>';
+            }
+        });
+        container.innerHTML = html;
     }
 
     // =================== Alert Helpers ===================
@@ -923,82 +1086,111 @@ var currentDownloadSearchType = 'fuzzy';
     function onUploadBucketChange() {
         var bucket = document.getElementById('uploadBucket').value;
         localStorage.setItem('last_bucket', bucket);
+        uploadCurrentPrefix = '';
         updateUploadPathBar();
+        document.getElementById('uploadFolderBrowser').style.display = 'none';
     }
 
-    // =================== Upload Folder Dropdown ===================
-    function toggleUploadFolderDropdown() {
-        document.getElementById('uploadFolderMenu').classList.toggle('show');
-    }
-
+    // =================== Upload Folder Browser ===================
     function loadUploadFolders() {
         var bucket = document.getElementById('uploadBucket').value;
         if (!bucket) { showAlert('error', '请先选择目标桶'); return; }
-        loadFoldersInto(bucket, 'upload');
-    }
-
-    function selectUploadFolder(path) {
-        document.getElementById('uploadFolderPath').value = path;
-        document.getElementById('uploadFolderMenu').classList.remove('show');
-        updateUploadPathBar();
-    }
-
-    // =================== Download Folder Dropdown ===================
-    function loadDownloadFolders() {
-        var bucket = document.getElementById('downloadBucket').value;
-        if (!bucket) { showAlert('error', '请先选择桶'); return; }
-        loadFoldersInto(bucket, 'download');
-    }
-
-    function selectDownloadFolder(path) {
-        document.getElementById('downloadPrefix').value = path;
-        document.getElementById('downloadFolderMenu').classList.remove('show');
-        updateDownloadPathBar();
-        debounceLoadDownloadFiles();
-    }
-
-    // 通用: 拉取并渲染指定桶 + 前缀的子文件夹, 支持点击进入下一层
-    function loadFoldersInto(bucket, mode) {
-        var prefixInputId = mode === 'upload' ? 'uploadFolderPath' : 'downloadPrefix';
-        var menuId = mode === 'upload' ? 'uploadFolderMenu' : 'downloadFolderMenu';
-        var menu = document.getElementById(menuId);
-        var currentPrefix = document.getElementById(prefixInputId).value.trim();
-        menu.innerHTML = '<div class="folder-dropdown-item"><span class="spinner" style="border-color:var(--primary);border-top-color:transparent"></span> 加载中...</div>';
-        menu.classList.add('show');
-        var query = '?bucket=' + encodeURIComponent(bucket);
-        if (currentPrefix) query += '&prefix=' + encodeURIComponent(currentPrefix);
-        apiRequest('GET', '/folders' + query, null, function(err, resp) {
-            if (err) { menu.innerHTML = '<div class="folder-dropdown-item" style="color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>'; return; }
-            var folders = resp.folders || [];
-            if (folders.length === 0) {
-                menu.innerHTML = '<div class="folder-dropdown-item" style="color:var(--text-secondary)">该目录下暂无子文件夹</div>';
+        var browser = document.getElementById('uploadFolderBrowser');
+        browser.style.display = 'block';
+        var grid = document.getElementById('uploadFolderGrid');
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-secondary)"><span class="spinner" style="border-color:var(--primary);border-top-color:transparent"></span> 加载中...</div>';
+        renderUploadBreadcrumb(uploadCurrentPrefix);
+        fetchFolders(bucket, uploadCurrentPrefix, function(err, resp) {
+            if (err) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>';
                 return;
             }
-            // 父级 (返回上一级) 入口
-            var html = '';
-            if (currentPrefix) {
-                var parent = currentPrefix.replace(/\/+$/, '').split('/').slice(0, -1).join('/');
-                if (parent) parent = parent + '/'; else parent = '';
-                html += '<div class="folder-dropdown-item" style="color:var(--primary);font-weight:600" onclick="select' + (mode === 'upload' ? 'Upload' : 'Download') + 'Folder(\'' + escapeAttr(parent) + '\')"><span class="folder-icon">&#11013;</span> 上一级 (根目录)</div>';
-            }
-            folders.forEach(function(folder) {
-                html += '<div class="folder-dropdown-item" onclick="select' + (mode === 'upload' ? 'Upload' : 'Download') + 'Folder(\'' + escapeAttr(folder) + '\')"><span class="folder-icon">&#128193;</span> ' + escapeHtml(folder) + '</div>';
-            });
-            menu.innerHTML = html;
+            renderFolderGrid(grid, resp.folders || [], 'enterUploadFolder', bucket);
         });
     }
 
-    // Close dropdowns on outside click
-      document.addEventListener('click', function(e) {
-          var uploadDropdown = document.getElementById('uploadFolderDropdown');
-          if (uploadDropdown && !uploadDropdown.contains(e.target)) {
-              document.getElementById('uploadFolderMenu').classList.remove('show');
-          }
-          var downloadDropdown = document.getElementById('downloadFolderDropdown');
-          if (downloadDropdown && !downloadDropdown.contains(e.target)) {
-              document.getElementById('downloadFolderMenu').classList.remove('show');
-          }
-      });
+    function navigateUploadBreadcrumb(path) {
+        if (path === 0 || path === '') {
+            uploadCurrentPrefix = '';
+        } else {
+            uploadCurrentPrefix = path;
+        }
+        updateUploadPathBar();
+        loadUploadFolders();
+    }
+
+    function enterUploadFolder(bucket, folder) {
+        if (uploadCurrentPrefix) {
+            uploadCurrentPrefix = uploadCurrentPrefix + '/' + folder;
+        } else {
+            uploadCurrentPrefix = folder;
+        }
+        updateUploadPathBar();
+        loadUploadFolders();
+    }
+
+    // =================== Download Folder Browser ===================
+    function loadDownloadFolders() {
+        var bucket = document.getElementById('downloadBucket').value;
+        if (!bucket) { showAlert('error', '请先选择桶'); return; }
+        var browser = document.getElementById('downloadFolderBrowser');
+        browser.style.display = 'block';
+        var grid = document.getElementById('downloadFolderGrid');
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-secondary)"><span class="spinner" style="border-color:var(--primary);border-top-color:transparent"></span> 加载中...</div>';
+        renderDownloadBreadcrumb(downloadCurrentPrefix);
+        fetchFolders(bucket, downloadCurrentPrefix, function(err, resp) {
+            if (err) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>';
+                return;
+            }
+            renderFolderGrid(grid, resp.folders || [], 'enterDownloadFolder', bucket);
+        });
+    }
+
+    function navigateDownloadBreadcrumb(path) {
+        if (path === 0 || path === '') {
+            downloadCurrentPrefix = '';
+        } else {
+            downloadCurrentPrefix = path;
+        }
+        updateDownloadPathBar();
+        loadDownloadFolders();
+    }
+
+    function enterDownloadFolder(bucket, folder) {
+        if (downloadCurrentPrefix) {
+            downloadCurrentPrefix = downloadCurrentPrefix + '/' + folder;
+        } else {
+            downloadCurrentPrefix = folder;
+        }
+        updateDownloadPathBar();
+        loadDownloadFolders();
+    }
+
+    // =================== Shared: fetch folders & render grid ===================
+    function fetchFolders(bucket, prefix, callback) {
+        var query = '?bucket=' + encodeURIComponent(bucket);
+        if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
+        apiRequest('GET', '/folders' + query, null, callback);
+    }
+
+    function renderFolderGrid(grid, folders, onClickName, bucket) {
+        if (!folders || folders.length === 0) {
+            grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-secondary)">该目录下暂无子文件夹</div>';
+            return;
+        }
+        var html = '';
+        folders.forEach(function(folder) {
+            // 提取文件夹名（去掉路径前缀）
+            var folderName = folder.replace(/\/+$/, '');
+            var parts = folderName.split('/');
+            var displayName = parts[parts.length - 1] || folderName;
+            html += '<div class="folder-card" onclick="' + onClickName + '(\'' + escapeAttr(bucket) + ',\'' + escapeAttr(folder) + '\')" title="' + escapeAttr(folder) + '">' +
+                '<span class="folder-icon">&#128193;</span>' +
+                '<span class="folder-name">' + escapeHtml(displayName) + '</span></div>';
+        });
+        grid.innerHTML = html;
+    }
 
     // =================== Multi-File Upload ===================
     var uploadZone = document.getElementById('uploadZone');
@@ -1054,7 +1246,7 @@ var currentDownloadSearchType = 'fuzzy';
         if (selectedUploadFiles.length === 0) { showAlert('error', '请先选择要上传的文件'); return; }
         var bucket = document.getElementById('uploadBucket').value;
         if (!bucket) { showAlert('error', '请选择目标桶'); return; }
-        var uploadPath = document.getElementById('uploadFolderPath').value.trim();
+        var uploadPath = uploadCurrentPrefix.trim().replace(/\/+$/, '');
         if (uploadPath && !uploadPath.endsWith('/')) uploadPath = uploadPath + '/';
         var totalFiles = selectedUploadFiles.length;
         var failedFiles = 0;
@@ -1143,29 +1335,42 @@ var currentDownloadSearchType = 'fuzzy';
     function onDownloadBucketChange() {
         var bucket = document.getElementById('downloadBucket').value;
         localStorage.setItem('last_bucket', bucket);
+        downloadCurrentPrefix = '';
+        downloadCurrentSearch = '';
+        currentDownloadPage = 1;
         updateDownloadPathBar();
-        loadDownloadFiles();
+        document.getElementById('downloadFolderBrowser').style.display = 'none';
+        document.getElementById('downloadPagination').style.display = 'none';
+        document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶后点击查询查看文件列表</p></div>';
+        document.getElementById('downloadSelectAllBar').classList.add('hidden');
+        allDownloadFiles = [];
+        selectedDownloadFiles = {};
     }
 
     function debounceLoadDownloadFiles() {
-        if (downloadLoadTimer) clearTimeout(downloadLoadTimer);
-        downloadLoadTimer = setTimeout(loadDownloadFiles, 400);
+        // 不做自动加载，需要用户点击查询按钮
     }
 
     function loadDownloadFiles() {
         var bucket = document.getElementById('downloadBucket').value;
-        var prefix = document.getElementById('downloadPrefix').value.trim();
-        updateDownloadPathBar();
         if (!bucket) {
-            document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>请选择桶以查看文件</p></div>';
-            document.getElementById('downloadSelectAllBar').classList.add('hidden');
-            allDownloadFiles = []; selectedDownloadFiles = {};
+            showAlert('error', '请先选择桶');
             return;
         }
+        var searchInput = document.getElementById('downloadSearchInput');
+        var pattern = searchInput ? searchInput.value.trim() : '';
+        var prefix = downloadCurrentPrefix;
+        downloadCurrentSearch = pattern;
+        updateDownloadPathBar();
+        currentDownloadPage = 1;
         var query = '?bucket=' + encodeURIComponent(bucket);
         if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
+        query += '&offset=' + ((currentDownloadPage - 1) * downloadPageSize);
+        query += '&limit=' + downloadPageSize;
         document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">加载中...</p></div>';
-        apiRequest('GET', '/files' + query, null, function(err, resp) {
+        document.getElementById('downloadPagination').style.display = 'none';
+        var url = '/files' + query;
+        apiRequest('GET', url, null, function(err, resp) {
             if (err) {
                 showAlert('error', '获取文件列表失败: ' + err);
                 document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#9888;</div><p>加载失败</p></div>';
@@ -1175,13 +1380,17 @@ var currentDownloadSearchType = 'fuzzy';
             }
             allDownloadFiles = resp.files || [];
             selectedDownloadFiles = {};
+            downloadCurrentTotal = resp.total_collected || allDownloadFiles.length;
             if (allDownloadFiles.length === 0) {
-                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>该桶暂无文件</p></div>';
+                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>该目录暂无文件</p></div>';
                 document.getElementById('downloadSelectAllBar').classList.add('hidden');
+                document.getElementById('downloadPagination').style.display = 'none';
                 return;
             }
+            totalDownloadPages = Math.ceil(downloadCurrentTotal / downloadPageSize);
             document.getElementById('downloadSelectAllBar').classList.remove('hidden');
             renderDownloadFileTable(allDownloadFiles, bucket);
+            renderPagination();
         });
     }
 
@@ -1195,37 +1404,41 @@ var currentDownloadSearchType = 'fuzzy';
 
     function debounceDownloadSearch() {
         if (downloadSearchTimer) clearTimeout(downloadSearchTimer);
-        downloadSearchTimer = setTimeout(searchDownloadFiles, 400);
+        downloadSearchTimer = setTimeout(function() { loadDownloadFiles(); }, 400);
     }
 
     function searchDownloadFiles() {
-        var bucket = document.getElementById('downloadBucket').value;
-        var pattern = document.getElementById('downloadSearchInput').value.trim();
-        var prefix = document.getElementById('downloadPrefix').value.trim();
-        updateDownloadPathBar();
-        if (!bucket) { showAlert('error', '请先选择桶'); return; }
-        if (!pattern) { loadDownloadFiles(); return; }
-        var query = '?bucket=' + encodeURIComponent(bucket) + '&pattern=' + encodeURIComponent(pattern) + '&type=' + currentDownloadSearchType;
-        if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
-        document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">搜索中...</p></div>';
-        apiRequest('GET', '/search' + query, null, function(err, resp) {
-            if (err) {
-                showAlert('error', '搜索失败: ' + err);
-                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#9888;</div><p>搜索失败</p></div>';
-                document.getElementById('downloadSelectAllBar').classList.add('hidden');
-                return;
-            }
-            var files = resp.files || [];
-            allDownloadFiles = files; selectedDownloadFiles = {};
-            if (files.length === 0) {
-                document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128269;</div><p>未找到匹配的文件</p></div>';
-                document.getElementById('downloadSelectAllBar').classList.add('hidden');
-                return;
-            }
-            document.getElementById('downloadSelectAllBar').classList.remove('hidden');
-            document.getElementById('downloadSelectedCount').textContent = '找到 ' + files.length + ' 个文件';
-            renderDownloadFileTable(files, bucket);
-        });
+        loadDownloadFiles();
+    }
+
+    // =================== Pagination ===================
+    function onDownloadPageSizeChange() {
+        downloadPageSize = parseInt(document.getElementById('downloadPageSize').value, 10);
+        currentDownloadPage = 1;
+        loadDownloadFiles();
+    }
+
+    function goDownloadPage(page) {
+        if (page < 1 || page > totalDownloadPages) return;
+        currentDownloadPage = page;
+        loadDownloadFiles();
+    }
+
+    function renderPagination() {
+        var pagination = document.getElementById('downloadPagination');
+        if (totalDownloadPages <= 1) {
+            pagination.style.display = 'none';
+            return;
+        }
+        pagination.style.display = 'flex';
+        var start = (currentDownloadPage - 1) * downloadPageSize + 1;
+        var end = Math.min(currentDownloadPage * downloadPageSize, downloadCurrentTotal);
+        document.getElementById('downloadPaginationInfo').textContent = '显示 ' + start + '-' + end + ' / 共 ' + downloadCurrentTotal + ' 个文件';
+        document.getElementById('downloadPageNum').textContent = currentDownloadPage + ' / ' + totalDownloadPages;
+        document.getElementById('downloadPageFirst').disabled = (currentDownloadPage <= 1);
+        document.getElementById('downloadPagePrev').disabled = (currentDownloadPage <= 1);
+        document.getElementById('downloadPageNext').disabled = (currentDownloadPage >= totalDownloadPages);
+        document.getElementById('downloadPageLast').disabled = (currentDownloadPage >= totalDownloadPages);
     }
 
     // =================== Download File Table ===================

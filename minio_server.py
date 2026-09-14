@@ -536,6 +536,7 @@ def list_files():
     limit = int(request.args.get("limit", "2000"))
     if limit > 10000:
         limit = 10000
+    offset = int(request.args.get("offset", "0"))
     try:
         client = get_minio_client()
         if not client:
@@ -544,37 +545,43 @@ def list_files():
             return jsonify({"error": "Bucket name is required."}), 400
 
         objects = client.list_objects(bucket_name, prefix=prefix or "", recursive=True)
-        files = []
-        count = 0
+        all_files = []
+        collected = 0
+        skip = offset
         for obj in objects:
-            if count >= limit:
+            if collected >= (offset + limit):
                 break
             if IS_MINIO_V7_API:
                 last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S") if obj.last_modified else ""
-                files.append({
+                file_info = {
                     "name": obj.object_name,
                     "size": obj.size,
                     "last_modified": last_mod,
                     "etag": obj.etag,
-                })
+                }
             else:
                 try:
                     stat = client.stat_object(bucket_name, obj.object_name)
-                    files.append({
+                    file_info = {
                         "name": obj.object_name,
                         "size": stat.size,
                         "last_modified": str(stat.last_modified),
                         "etag": stat.etag,
-                    })
+                    }
                 except Exception:
-                    files.append({
+                    file_info = {
                         "name": obj.object_name,
                         "size": 0,
                         "last_modified": "",
                         "etag": "",
-                    })
-            count += 1
-        return jsonify({"files": files, "bucket": bucket_name, "count": len(files), "limit": limit})
+                    }
+            collected += 1
+            if skip > 0:
+                skip -= 1
+                continue
+            all_files.append(file_info)
+
+        return jsonify({"files": all_files, "bucket": bucket_name, "count": len(all_files), "limit": limit, "offset": offset, "total_collected": collected})
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
     except Exception as e:
