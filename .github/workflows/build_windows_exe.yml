@@ -40,12 +40,21 @@ jobs:
         run: |
           pip install "nuitka[full]"
 
-      - name: Build EXE with Nuitka
+      - name: Build EXE with Nuitka (simplified)
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x86
           run: |
-            nuitka --standalone --follow-import-to=minio_server --include-package=minio --include-package=flask --include-package=flask_cors --include-package=webview --include-package=pythonnet --include-data-dir=templates=templates --include-data-dir=assets=assets --windows-icon-from-ico=assets/app.ico --windows-company-name=MinIOFileService --windows-product-name=MinIOFileService --windows-file-description=MinIOFileManager --windows-product-version=1.0.0 --windows-file-version=1.0.0 --nofollow-import-to=unittest --nofollow-import-to=pytest --nofollow-import-to=pydoc_data --output-dir=dist/minio_file_service --output-filename=minio_file_service main.py
+            python -m nuitka --standalone --include-package=minio --include-package=flask --include-package=flask_cors --include-data-dir=templates=templates --include-data-dir=assets=assets --windows-icon-from-ico=assets/app.ico --output-dir=dist/minio_file_service --output-filename=minio_file_service main.py
+
+      - name: Show Nuitka build logs
+        if: always()
+        shell: pwsh
+        run: |
+          Get-ChildItem "dist\minio_file_service" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 30 FullName, Length
+          if (Test-Path "dist\minio_file_service\*.log") {
+            Get-Content "dist\minio_file_service\*.log" -ErrorAction SilentlyContinue
+          }
 
       - name: Rename exe if needed
         shell: pwsh
