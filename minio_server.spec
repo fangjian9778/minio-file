@@ -77,7 +77,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,  # 禁用 UPX 压缩，降低杀毒软件误报率
     console=False,
     icon='assets/app.ico',
     disable_windowed_traceback=False,
@@ -93,7 +93,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,  # 禁用 UPX 压缩
     upx_exclude=[],
     name='minio_file_service',
 )
