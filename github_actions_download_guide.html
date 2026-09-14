@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Actions 产物下载指南</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: #0d1117;
+            color: #c9d1d9;
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #58a6ff;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #8b949e;
+            font-size: 1.1rem;
+            margin-bottom: 50px;
+        }
+        .step {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 40px;
+        }
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .step-number {
+            background: #238636;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+        .step-title {
+            color: #f0f6fc;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .step-url {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px 16px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            color: #58a6ff;
+            margin-bottom: 20px;
+            word-break: break-all;
+        }
+        .screenshot {
+            background: #0d1117;
+            border: 2px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        .mock-ui {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        }
+        .mock-header {
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+            padding: 12px 16px;
+            margin: -20px -20px 20px -20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .mock-nav {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+        }
+        .mock-nav-item {
+            color: #8b949e;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .mock-nav-item.active {
+            color: #f0f6fc;
+            background: rgba(88, 166, 255, 0.1);
+            font-weight: 600;
+        }
+        .mock-workflow-list {
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .mock-workflow-item {
+            padding: 16px;
+            border-bottom: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .mock-workflow-item:last-child {
+            border-bottom: none;
+        }
+        .mock-workflow-item.clickable {
+            background: rgba(88, 166, 255, 0.05);
+            cursor: pointer;
+        }
+        .mock-workflow-item:hover {
+            background: rgba(88, 166, 255, 0.1);
+        }
+        .mock-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        .mock-status.success {
+            background: #238636;
+            color: white;
+        }
+        .mock-workflow-name {
+            flex: 1;
+            color: #f0f6fc;
+            font-weight: 500;
+        }
+        .mock-workflow-time {
+            color: #8b949e;
+            font-size: 0.85rem;
+        }
+        .mock-details {
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+        }
+        .mock-job {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid #21262d;
+        }
+        .mock-job:last-child {
+            border-bottom: none;
+        }
+        .mock-step-list {
+            margin-top: 20px;
+        }
+        .mock-step-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            font-size: 0.9rem;
+        }
+        .check {
+            color: #3fb950;
+        }
+        .arrow-right {
+            color: #8b949e;
+        }
+        .mock-artifacts {
+            background: #161b22;
+            border: 2px solid #f0883e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        .mock-artifacts-title {
+            color: #f0883e;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .mock-artifact-item {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .mock-download-btn {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+        }
+        .highlight {
+            position: relative;
+        }
+        .highlight::after {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            right: -5px;
+            bottom: -5px;
+            border: 3px solid #f0883e;
+            border-radius: 10px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .click-hint {
+            position: absolute;
+            right: -200px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #f0883e;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .info-box {
+            background: rgba(88, 166, 255, 0.1);
+            border-left: 4px solid #58a6ff;
+            padding: 16px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .warning-box {
+            background: rgba(240, 136, 62, 0.1);
+            border-left: 4px solid #f0883e;
+            padding: 16px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .success-box {
+            background: rgba(35, 134, 54, 0.1);
+            border-left: 4px solid #238636;
+            padding: 16px;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        .folder-structure {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 20px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: #c9d1d9;
+        }
+        .folder {
+            color: #58a6ff;
+        }
+        .file {
+            color: #7ee787;
+        }
+        .comment {
+            color: #8b949e;
+        }
+        .arrow-down {
+            text-align: center;
+            font-size: 2rem;
+            color: #58a6ff;
+            margin: 30px 0;
+        }
+        .step-desc {
+            color: #c9d1d9;
+            font-size: 1rem;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📦 GitHub Actions 产物下载指南</h1>
+        <p class="subtitle">一步步教你从 GitHub Actions 下载打包好的 Windows EXE 文件</p>
+
+        <!-- Step 1 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">1</div>
+                <div class="step-title">打开 Actions 页面</div>
+            </div>
+            <p class="step-desc">在浏览器中访问以下 URL：</p>
+            <div class="step-url">https://github.com/fangjian9778/minio-file/actions</div>
+            
+            <div class="info-box">
+                💡 <strong>提示：</strong>你也可以在仓库主页顶部导航栏点击 <strong>"Actions"</strong> 标签页进入。
+            </div>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div class="mock-header">
+                        <span style="color: #58a6ff; font-weight: 600;">fangjian9778/minio-file</span>
+                        <div class="mock-nav">
+                            <span class="mock-nav-item">Code</span>
+                            <span class="mock-nav-item">Issues</span>
+                            <span class="mock-nav-item active">Actions</span>
+                            <span class="mock-nav-item">Pull requests</span>
+                            <span class="mock-nav-item">Settings</span>
+                        </div>
+                    </div>
+                    
+                    <div style="padding: 20px 0;">
+                        <div style="color: #f0f6fc; font-size: 1.2rem; margin-bottom: 20px; font-weight: 600;">Actions</div>
+                        <div style="color: #8b949e; font-size: 0.9rem;">最近的工作流运行记录</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 2 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">2</div>
+                <div class="step-title">点击工作流运行记录</div>
+            </div>
+            <p class="step-desc">在 Actions 列表中找到 <strong>"Build Windows 32-bit EXE"</strong> 并点击：</p>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div class="mock-workflow-list">
+                        <div class="mock-workflow-item clickable highlight">
+                            <div class="mock-status success">✓</div>
+                            <div class="mock-workflow-name">Build Windows 32-bit EXE</div>
+                            <div class="mock-workflow-time">#1 · master · 2分钟前</div>
+                            <div class="click-hint">👆 点击这里</div>
+                        </div>
+                        <div class="mock-workflow-item" style="opacity: 0.5;">
+                            <div class="mock-status success">✓</div>
+                            <div class="mock-workflow-name">Build Windows 32-bit EXE</div>
+                            <div class="mock-workflow-time">#0 · master · 1小时前</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box">
+                🎯 <strong>状态说明：</strong><br>
+                🟢 <strong>绿色对勾</strong> - 打包成功，可以下载<br>
+                🔵 <strong>蓝色旋转</strong> - 打包中，请等待<br>
+                🔴 <strong>红色叉号</strong> - 打包失败，需要检查错误
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 3 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">3</div>
+                <div class="step-title">查看工作流运行详情</div>
+            </div>
+            <p class="step-desc">点击后进入详情页，可以看到打包过程的各个步骤：</p>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div style="margin-bottom: 20px;">
+                        <div style="color: #f0f6fc; font-size: 1.2rem; font-weight: 600; margin-bottom: 10px;">
+                            Build Windows 32-bit EXE #1
+                        </div>
+                        <div style="color: #8b949e; font-size: 0.85rem;">
+                            ✓ Success · master · 运行时间 8分32秒
+                        </div>
+                    </div>
+
+                    <div class="mock-details">
+                        <div style="color: #f0f6fc; font-weight: 600; margin-bottom: 15px;">build</div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Checkout code</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">4s</span>
+                        </div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Setup Python 3.8 (32-bit)</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">12s</span>
+                        </div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Verify Python environment</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">2s</span>
+                        </div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Install dependencies</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">1分23秒</span>
+                        </div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Build EXE with PyInstaller</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">5分45秒</span>
+                        </div>
+                        <div class="mock-job">
+                            <span class="check">✓</span>
+                            <span>Upload artifact</span>
+                            <span class="arrow-right">→</span>
+                            <span style="color: #8b949e; font-size: 0.85rem;">34秒</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 4 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">4</div>
+                <div class="step-title">找到 Artifacts 区域</div>
+            </div>
+            <p class="step-desc">在工作流详情页<strong>底部</strong>，找到橙色的 <strong>Artifacts</strong> 区域：</p>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div class="mock-artifacts highlight">
+                        <div class="mock-artifacts-title">
+                            📦 Artifacts
+                        </div>
+                        <div class="mock-artifact-item">
+                            <span style="font-size: 1.5rem;">📁</span>
+                            <div style="flex: 1;">
+                                <div style="color: #58a6ff; font-weight: 600; margin-bottom: 4px;">
+                                    minio-file-service-win32
+                                </div>
+                                <div style="color: #8b949e; font-size: 0.85rem;">
+                                    145 MB ·  expires in 89 days
+                                </div>
+                            </div>
+                            <button class="mock-download-btn highlight">
+                                ⬇️ Download
+                            </button>
+                            <div class="click-hint" style="right: -180px;">👆 点击下载</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="warning-box">
+                ⚠️ <strong>注意：</strong>Artifacts 默认保留 <strong>90 天</strong>，建议及时下载到本地保存！
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 5 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">5</div>
+                <div class="step-title">下载并解压文件</div>
+            </div>
+            <p class="step-desc">点击 <strong>Download</strong> 按钮后，浏览器会自动下载 <code>minio-file-service-win32.zip</code> 文件：</p>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div style="padding: 20px; text-align: center;">
+                        <div style="font-size: 4rem; margin-bottom: 20px;">📥</div>
+                        <div style="color: #f0f6fc; font-size: 1.1rem; margin-bottom: 10px;">
+                            下载完成
+                        </div>
+                        <div style="color: #8b949e; font-size: 0.9rem;">
+                            minio-file-service-win32.zip (145 MB)
+                        </div>
+                        <div style="margin-top: 20px; padding: 15px; background: #161b22; border-radius: 6px; display: inline-block;">
+                            <div style="color: #58a6ff; font-weight: 600; margin-bottom: 10px;">📍 下载位置：</div>
+                            <div style="color: #c9d1d9; font-family: monospace;">
+                                ~/Downloads/minio-file-service-win32.zip
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="info-box">
+                📝 <strong>解压步骤：</strong><br>
+                1. 找到下载的 <code>minio-file-service-win32.zip</code> 文件<br>
+                2. 双击文件或使用解压工具（如 WinRAR、7-Zip）<br>
+                3. 解压后得到 <code>minio_file_service/</code> 文件夹
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 6 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">6</div>
+                <div class="step-title">解压后的文件结构</div>
+            </div>
+            <p class="step-desc">解压后会看到完整的 Windows 应用程序文件夹：</p>
+
+            <div class="folder-structure">
+<span class="folder">minio_file_service/</span>
+├── <span class="file">minio_file_service.exe</span>    <span class="comment">← 主程序，双击运行</span>
+├── <span class="file">python38.dll</span>              <span class="comment">← Python 3.8 运行时</span>
+├── <span class="file">_cffi_backend.cp38-win32.pyd</span>
+├── <span class="file">pyexpat.pyd</span>
+├── <span class="file">select.pyd</span>
+├── <span class="file">unicodedata.pyd</span>
+├── <span class="file">_socket.pyd</span>
+├── <span class="file">_ssl.pyd</span>
+├── <span class="file">libcrypto-1_1.dll</span>
+├── <span class="file">libssl-1_1.dll</span>
+├── <span class="file">libffi-7.dll</span>
+├── <span class="folder">templates/</span>              <span class="comment">← Flask HTML 模板</span>
+│   └── <span class="file">index.html</span>
+└── <span class="comment">... (其他依赖库文件)</span>
+            </div>
+
+            <div class="warning-box">
+                ⚠️ <strong>重要：</strong>整个 <code>minio_file_service/</code> 文件夹需要保持完整，不要只复制 .exe 文件！
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- Step 7 -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number">7</div>
+                <div class="step-title">运行程序</div>
+            </div>
+            <p class="step-desc">双击 <code>minio_file_service.exe</code> 运行程序：</p>
+
+            <div class="screenshot">
+                <div class="mock-ui">
+                    <div style="background: #000; color: #0f0; font-family: monospace; padding: 20px; border-radius: 6px; border: 1px solid #333;">
+                        <div>MinIO SDK version string: '7.2.20'</div>
+                        <div>Using v7-style API</div>
+                        <div>Starting MinIO File Service...</div>
+                        <div style="color: #58a6ff; margin-top: 10px;">Server will be available at: http://0.0.0.0:5050/minio</div>
+                        <div style="margin-top: 10px;">* Serving Flask app 'minio_server'</div>
+                        <div>* Running on http://127.0.0.1:5050</div>
+                        <div>* Running on http://192.168.1.100:5050</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="success-box">
+                ✅ <strong>访问服务：</strong>打开浏览器，访问 <code>http://localhost:5050/minio</code>
+            </div>
+
+            <div class="info-box">
+                📝 <strong>自定义端口：</strong><br>
+                在命令行运行：<code>set PORT=8080</code> 然后再运行 <code>minio_file_service.exe</code>
+            </div>
+        </div>
+
+        <div class="arrow-down">↓</div>
+
+        <!-- FAQ -->
+        <div class="step">
+            <div class="step-header">
+                <div class="step-number" style="background: #f0883e;">?</div>
+                <div class="step-title">常见问题</div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="color: #f0f6fc; font-weight: 600; margin-bottom: 8px;">
+                    ❓ Windows Defender 拦截怎么办？
+                </div>
+                <div style="color: #c9d1d9; font-size: 0.95rem;">
+                    PyInstaller 打包的程序可能被误报为病毒。解决方法：右键文件 → 属性 → 勾选"解除锁定" → 应用。
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="color: #f0f6fc; font-weight: 600; margin-bottom: 8px;">
+                    ❓ 防火墙提示怎么处理？
+                </div>
+                <div style="color: #c9d1d9; font-size: 0.95rem;">
+                    首次运行时 Windows 防火墙会弹出提示，选择"允许访问"并勾选"专用网络"和"公用网络"。
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <div style="color: #f0f6fc; font-weight: 600; margin-bottom: 8px;">
+                    ❓ 打包失败怎么办？
+                </div>
+                <div style="color: #c9d1d9; font-size: 0.95rem;">
+                    点击工作流运行记录查看详细错误日志，通常是在 "Build EXE with PyInstaller" 步骤查看。
+                </div>
+            </div>
+
+            <div>
+                <div style="color: #f0f6fc; font-weight: 600; margin-bottom: 8px;">
+                    ❓ 如何重新打包？
+                </div>
+                <div style="color: #c9d1d9; font-size: 0.95rem;">
+                    修改代码后推送新的 commit，或者在 Actions 页面点击 "Run workflow" 按钮手动触发。
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 60px; color: #8b949e;">
+            <p style="font-size: 1.1rem; margin-bottom: 10px;">🎉 祝你使用愉快！</p>
+            <p>MinIO File Service for Windows</p>
+        </div>
+    </div>
+</body>
+</html>

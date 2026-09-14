@@ -1,7 +1,7 @@
 ; ============================================================================
-; Inno Setup 脚本 - MinIO 文件服务 安装包
+; Inno Setup 脚本 - MinIO 文件服务 安装包 (Nuitka 版本)
 ; 目标: Windows 7+ 32位/64位
-; 打包流程: PyInstaller 生成 dist\minio_file_service\ 文件夹后, 由本脚本打包为 setup.exe
+; 打包流程: Nuitka 编译 dist\minio_file_service\ 文件夹后, 由本脚本打包为 setup.exe
 ; 编译命令(Windows): "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 ; ============================================================================
 
@@ -45,16 +45,14 @@ Uninstallable=yes
 Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; 打包 PyInstaller 输出的整个程序文件夹 (递归包含 templates 等依赖)
+; 打包 Nuitka 输出的整个程序文件夹 (递归包含所有依赖)
 Source: "dist\minio_file_service\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; 显式打包应用图标, 确保桌面/开始菜单快捷方式使用统一图标
-Source: "assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-; 开始菜单快捷方式 (显式指定独立 .ico 文件, 确保图标与安装包一致)
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; WorkingDir: "{app}"
+; 开始菜单快捷方式 (Nuitka 编译的 exe 已内嵌图标)
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 ; 桌面快捷方式
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; WorkingDir: "{app}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 
 [Run]
 ; 安装完成后可选启动
