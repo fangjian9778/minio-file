@@ -1110,7 +1110,7 @@
     }
 
     function navigateUploadBreadcrumb(path) {
-        if (path === 0 || path === '') {
+        if (path === undefined || path === '' || path === 0) {
             uploadCurrentPrefix = '';
         } else {
             uploadCurrentPrefix = path;
@@ -1148,7 +1148,7 @@
     }
 
     function navigateDownloadBreadcrumb(path) {
-        if (path === 0 || path === '') {
+        if (path === undefined || path === '' || path === 0) {
             downloadCurrentPrefix = '';
         } else {
             downloadCurrentPrefix = path;
