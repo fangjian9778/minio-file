@@ -45,28 +45,29 @@ jobs:
           pip install "nuitka[full]"
 
       - name: Build EXE with Nuitka
+        shell: pwsh
         run: |
-          nuitka ^
-            --standalone ^
-            --follow-import-to=minio_server ^
-            --include-package=minio ^
-            --include-package=flask ^
-            --include-package=flask_cors ^
-            --include-package=pywebview ^
-            --include-package=pythonnet ^
-            --include-data-dir=templates=templates ^
-            --include-data-dir=assets=assets ^
-            --windows-icon-from-ico=assets/app.ico ^
-            --windows-company-name="MinIOFileService" ^
-            --windows-product-name="MinIO 文件服务" ^
-            --windows-file-description="MinIO 文件管理服务" ^
-            --windows-product-version=1.0.0 ^
-            --windows-file-version=1.0.0 ^
-            --nofollow-import-to=unittest ^
-            --nofollow-import-to=pytest ^
-            --nofollow-import-to=pydoc_data ^
-            --output-dir=dist/minio_file_service ^
-            --output-filename=minio_file_service ^
+          nuitka `
+            --standalone `
+            --follow-import-to=minio_server `
+            --include-package=minio `
+            --include-package=flask `
+            --include-package=flask_cors `
+            --include-package=pywebview `
+            --include-package=pythonnet `
+            --include-data-dir=templates=templates `
+            --include-data-dir=assets=assets `
+            --windows-icon-from-ico=assets/app.ico `
+            --windows-company-name="MinIOFileService" `
+            --windows-product-name="MinIO 文件服务" `
+            --windows-file-description="MinIO 文件管理服务" `
+            --windows-product-version=1.0.0 `
+            --windows-file-version=1.0.0 `
+            --nofollow-import-to=unittest `
+            --nofollow-import-to=pytest `
+            --nofollow-import-to=pydoc_data `
+            --output-dir=dist/minio_file_service `
+            --output-filename=minio_file_service `
             main.py
 
       - name: Rename exe if needed
