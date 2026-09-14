@@ -1135,11 +1135,8 @@
     }
 
     function enterUploadFolder(bucket, folder) {
-        if (uploadCurrentPrefix) {
-            uploadCurrentPrefix = uploadCurrentPrefix + '/' + folder;
-        } else {
-            uploadCurrentPrefix = folder;
-        }
+        // 后端返回的 folder 已经是完整路径，直接使用
+        uploadCurrentPrefix = folder.replace(/\/+$/, '');
         localStorage.setItem('upload_prefix', uploadCurrentPrefix);
         updateUploadPathBar();
         loadUploadFolders();
