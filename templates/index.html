@@ -1105,7 +1105,7 @@
                 grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>';
                 return;
             }
-            renderFolderGrid(grid, resp.folders || [], 'enterUploadFolder', bucket);
+            renderFolderGrid(grid, resp.folders || [], 'upload', bucket);
         });
     }
 
@@ -1143,7 +1143,7 @@
                 grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--danger)">加载失败: ' + escapeHtml(err) + '</div>';
                 return;
             }
-            renderFolderGrid(grid, resp.folders || [], 'enterDownloadFolder', bucket);
+            renderFolderGrid(grid, resp.folders || [], 'download', bucket);
         });
     }
 
@@ -1174,23 +1174,33 @@
         apiRequest('GET', '/folders' + query, null, callback);
     }
 
-    function renderFolderGrid(grid, folders, onClickName, bucket) {
+    function renderFolderGrid(grid, folders, mode, bucket) {
         if (!folders || folders.length === 0) {
             grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--text-secondary)">该目录下暂无子文件夹</div>';
             return;
         }
         var html = '';
         folders.forEach(function(folder) {
-            // 提取文件夹名（去掉路径前缀）
             var folderName = folder.replace(/\/+$/, '');
             var parts = folderName.split('/');
             var displayName = parts[parts.length - 1] || folderName;
-            html += '<div class="folder-card" onclick="' + onClickName + '(\'' + escapeAttr(bucket) + ',\'' + escapeAttr(folder) + '\')" title="' + escapeAttr(folder) + '">' +
+            html += '<div class="folder-card" data-mode="' + mode + '" data-bucket="' + escapeHtml(bucket) + '" data-folder="' + escapeHtml(folder) + '" title="' + escapeHtml(folder) + '">' +
                 '<span class="folder-icon">&#128193;</span>' +
                 '<span class="folder-name">' + escapeHtml(displayName) + '</span></div>';
         });
         grid.innerHTML = html;
     }
+
+    // Event delegation for folder card clicks
+    document.addEventListener('click', function(e) {
+        var card = e.target.closest('.folder-card');
+        if (!card) return;
+        var mode = card.getAttribute('data-mode');
+        var bucket = card.getAttribute('data-bucket');
+        var folder = card.getAttribute('data-folder');
+        if (mode === 'upload') enterUploadFolder(bucket, folder);
+        else if (mode === 'download') enterDownloadFolder(bucket, folder);
+    });
 
     // =================== Multi-File Upload ===================
     var uploadZone = document.getElementById('uploadZone');
@@ -1363,13 +1373,23 @@
         downloadCurrentSearch = pattern;
         updateDownloadPathBar();
         currentDownloadPage = 1;
+        var hasSearch = !!pattern;
         var query = '?bucket=' + encodeURIComponent(bucket);
         if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
         query += '&offset=' + ((currentDownloadPage - 1) * downloadPageSize);
         query += '&limit=' + downloadPageSize;
         document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="spinner" style="border-color:var(--primary);border-top-color:transparent;width:24px;height:24px"></div><p style="margin-top:12px">加载中...</p></div>';
         document.getElementById('downloadPagination').style.display = 'none';
-        var url = '/files' + query;
+        var url;
+        if (hasSearch) {
+            // 搜索模式：走 /api/search 接口（不支持分页，但支持模糊/通配符/正则）
+            query = '?bucket=' + encodeURIComponent(bucket) + '&pattern=' + encodeURIComponent(pattern) + '&type=' + currentDownloadSearchType;
+            if (prefix) query += '&prefix=' + encodeURIComponent(prefix);
+            url = '/search' + query;
+        } else {
+            // 普通模式：走 /api/files 接口（支持分页）
+            url = '/files' + query;
+        }
         apiRequest('GET', url, null, function(err, resp) {
             if (err) {
                 showAlert('error', '获取文件列表失败: ' + err);
@@ -1387,7 +1407,7 @@
                 document.getElementById('downloadPagination').style.display = 'none';
                 return;
             }
-            totalDownloadPages = Math.ceil(downloadCurrentTotal / downloadPageSize);
+            totalDownloadPages = Math.max(1, Math.ceil(downloadCurrentTotal / downloadPageSize));
             document.getElementById('downloadSelectAllBar').classList.remove('hidden');
             renderDownloadFileTable(allDownloadFiles, bucket);
             renderPagination();

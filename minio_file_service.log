@@ -1,0 +1,3 @@
+Starting MinIO File Service (GUI) ... port=5001
+URL: http://127.0.0.1:5001/minio
+webview unavailable (No module named 'webview'), fallback to system browser
