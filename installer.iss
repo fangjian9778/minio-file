@@ -9,6 +9,8 @@
 #define MyAppVersion "1.0.0"
 #define MyAppExeName "minio_file_service.exe"
 #define MyAppPublisher "MinIO File Service"
+#define MyAppURL "https://github.com/fangjian9778/minio-file"
+#define MyAppDescription "MinIO 对象存储文件管理工具 - 支持文件上传下载、桶管理"
 
 [Setup]
 ; 应用唯一标识 (卸载时用于识别, 请勿随意修改)
@@ -16,6 +18,9 @@ AppId={{8E2A9B1C-4F3D-4A2B-9C7E-1D5F6A8B9C0D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppSupportURL={#MyURL}
+AppUpdatesURL={#MyURL}
+AppComments={#MyAppDescription}
 ; 默认安装目录: 32位系统装到 Program Files, 64位系统装到 Program Files (x86)
 DefaultDirName={autopf}\MinIOFileService
 ; 默认开始菜单组
@@ -40,6 +45,10 @@ ShowLanguageDialog=no
 UsePreviousAppDir=no
 ; 卸载时删除程序目录
 Uninstallable=yes
+; 应用版权信息
+LicenseFile=
+InfoBeforeFile=
+InfoAfterFile=
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "compiler:Default.isl"

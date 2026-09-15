@@ -63,7 +63,7 @@ a = Analysis(
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=None,
-    noarchive=False,
+    noarchive=True,  # 不打包字节码到单个 archive，降低误报率
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=None)

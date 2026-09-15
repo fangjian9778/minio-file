@@ -1172,11 +1172,8 @@
     }
 
     function enterDownloadFolder(bucket, folder) {
-        if (downloadCurrentPrefix) {
-            downloadCurrentPrefix = downloadCurrentPrefix + '/' + folder;
-        } else {
-            downloadCurrentPrefix = folder;
-        }
+        // 后端返回的 folder 已经是完整路径，直接使用
+        downloadCurrentPrefix = folder.replace(/\/+$/, '');
         localStorage.setItem('download_prefix', downloadCurrentPrefix);
         updateDownloadPathBar();
         loadDownloadFolders();
