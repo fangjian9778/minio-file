@@ -18,8 +18,8 @@ AppId={{8E2A9B1C-4F3D-4A2B-9C7E-1D5F6A8B9C0D}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppSupportURL={#MyURL}
-AppUpdatesURL={#MyURL}
+AppSupportURL={#MyAppURL}
+AppUpdatesURL={#MyAppURL}
 AppComments={#MyAppDescription}
 ; 默认安装目录: 32位系统装到 Program Files, 64位系统装到 Program Files (x86)
 DefaultDirName={autopf}\MinIOFileService
