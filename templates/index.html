@@ -7,6 +7,10 @@
     <style>
         /* =================== CSS Reset & Base =================== */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
         :root {
             --primary: #4285f4;
             --primary-dark: #3367d6;
@@ -27,27 +31,23 @@
             background: var(--bg);
             color: var(--text);
             line-height: 1.6;
-            min-height: 100vh;
-            /* 允许文本选中 */
-            -webkit-user-select: text;
-            user-select: text;
+            display: flex;
+            flex-direction: column;
         }
         /* =================== Layout =================== */
         .app-header {
             background: linear-gradient(135deg, var(--primary), #6c63ff);
             color: white;
-            padding: 20px 0;
+            padding: 16px 0;
             box-shadow: var(--shadow-lg);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            flex-shrink: 0;
         }
         .app-header .container {
             display: flex;
             align-items: center;
             justify-content: space-between;
         }
-        .app-header h1 { font-size: 1.5rem; font-weight: 600; }
+        .app-header h1 { font-size: 1.3rem; font-weight: 600; }
         .app-header .status-badge {
             font-size: .8rem;
             padding: 4px 12px;
@@ -64,14 +64,18 @@
             display: inline-block;
         }
         .status-dot.connected { background: var(--success); }
-        .container { width: 100%; max-width: 1600px; margin: 0 auto; padding: 0 24px; }
-        .main-content { padding: 24px 0; }
+        .container { width: 100%; max-width: 100%; margin: 0 auto; padding: 0 24px; }
+        .main-content { 
+            flex: 1; 
+            overflow-y: auto; 
+            padding: 20px 0;
+        }
         .card {
             background: var(--card-bg);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            padding: 24px;
-            margin-bottom: 20px;
+            padding: 20px;
+            margin-bottom: 16px;
         }
         .card-title {
             font-size: 1.1rem;
@@ -794,7 +798,7 @@
                         <button class="btn btn-sm btn-primary" onclick="batchDownloadSelected()">&#128230; 批量下载</button>
                     </div>
                 </div>
-                <div id="downloadFileListArea">
+                <div id="downloadFileListArea" style="max-height: 500px; overflow-y: auto;">
                     <div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶后点击查询查看文件列表</p></div>
                 </div>
                 <!-- Pagination -->
@@ -803,8 +807,9 @@
                     <div class="pagination-controls">
                         <span style="font-size:.85rem;color:var(--text-secondary)">每页</span>
                         <select id="downloadPageSize" onchange="onDownloadPageSizeChange()">
+                            <option value="10" selected>10</option>
                             <option value="20">20</option>
-                            <option value="50" selected>50</option>
+                            <option value="50">50</option>
                             <option value="100">100</option>
                             <option value="200">200</option>
                         </select>
@@ -848,7 +853,7 @@
     var downloadCurrentSearch = '';
     var downloadCurrentTotal = 0;
     var currentDownloadPage = 1;
-    var downloadPageSize = 50;
+    var downloadPageSize = 10;
     var totalDownloadPages = 1;
 
     // =================== Tab Navigation ===================
@@ -998,7 +1003,7 @@
     }
 
     function escapeAttr(str) {
-        return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/\\/g, '&#92;');
     }
 
     // =================== Config ===================
@@ -1489,19 +1494,45 @@
             html += '<tr>' +
                 '<td><input type="checkbox" class="file-checkbox" data-idx="' + idx + '" onchange="toggleDownloadFileSelectByIdx(this)"></td>' +
                 '<td><div class="file-name"><span class="file-icon">' + icon + '</span>' +
-                '<span class="name-text" title="' + escapedFull + '" style="cursor:pointer" onclick="copyFileNameByIdx(' + idx + ')">' + escapedBase + '</span></div></td>' +
+                '<span class="name-text" title="' + escapedFull + '" style="cursor:pointer" data-copy-idx="' + idx + '"><span class="copy-trigger">' + escapedBase + '</span></span></div></td>' +
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
-                '<button class="btn btn-sm btn-outline" onclick="copyFileNameByIdx(' + idx + ')">&#128203; 复制</button>' +
+                '<button class="btn btn-sm btn-outline copy-btn" data-idx="' + idx + '">&#128203; 复制</button>' +
                 (isFolder ? 
-                    '<button class="btn btn-sm btn-outline disabled" style="opacity:0.4;cursor:not-allowed" title="文件夹不可下载">&#11015; 下载</button>' :
-                    '<button class="btn btn-sm btn-primary" onclick="downloadFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#11015; 下载</button>') +
-                '<button class="btn btn-sm btn-danger" onclick="deleteFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#128465;</button>' +
+                    '<button class="btn btn-sm btn-outline download-btn disabled" disabled title="文件夹不可下载">&#11015; 下载</button>' :
+                    '<button class="btn btn-sm btn-primary download-btn" data-idx="' + idx + '">&#11015; 下载</button>') +
+                '<button class="btn btn-sm btn-danger delete-btn" data-idx="' + idx + '">&#128465;</button>' +
                 '</div></td></tr>';
         });
         html += '</tbody></table></div>';
         document.getElementById('downloadFileListArea').innerHTML = html;
+        // 事件委托：复制、下载、删除
+        document.querySelectorAll('.copy-trigger').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var row = this.closest('tr');
+                var idx = parseInt(row.querySelector('[data-idx]').getAttribute('data-idx'), 10);
+                copyFileNameByIdx(idx);
+            });
+        });
+        document.querySelectorAll('.copy-btn').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                copyFileNameByIdx(idx);
+            });
+        });
+        document.querySelectorAll('.download-btn').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                downloadFileByIdx(idx, bucket);
+            });
+        });
+        document.querySelectorAll('.delete-btn').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                deleteFileByIdx(idx, bucket);
+            });
+        });
         updateDownloadSelectAllState();
     }
 

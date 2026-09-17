@@ -246,11 +246,12 @@ def main():
     try:
         # 主线程运行 GUI 事件循环, 内置浏览器加载页面
         import webview
+        import ctypes
         # 暴露 JS API, 让前端在程序内下载/保存到本地路径
         js_api = _JsApi()
         # 窗口图标: 与安装包/exe 图标保持一致 (pywebview >= 4.0 支持 icon 参数)
         window_kwargs = dict(
-            width=1200,
+            width=1280,
             height=800,
             min_size=(900, 600),
             js_api=js_api,
@@ -259,6 +260,16 @@ def main():
         if os.path.exists(icon_path):
             window_kwargs["icon"] = icon_path
         _api_window = webview.create_window("MinIO 文件服务", url, **window_kwargs)
+        # 窗口创建后最大化 (Windows)
+        try:
+            if sys.platform == 'win32':
+                # 使用 Windows API 最大化窗口
+                SW_MAXIMIZE = 3
+                hwnd = ctypes.windll.user32.FindWindowW(None, "MinIO 文件服务")
+                if hwnd:
+                    ctypes.windll.user32.ShowWindow(hwnd, SW_MAXIMIZE)
+        except Exception as e:
+            _log("Maximize window error: " + str(e))
         webview.start()
         _log("Window closed, exiting.")
         # 窗口关闭即退出进程
@@ -267,9 +278,19 @@ def main():
         # 旧版 pywebview 不支持 icon 参数时重试
         try:
             import webview
+            import ctypes
             js_api = _JsApi()
-            _api_window = webview.create_window("MinIO 文件服务", url, width=1200, height=800,
+            _api_window = webview.create_window("MinIO 文件服务", url, width=1280, height=800,
                                                 min_size=(900, 600), js_api=js_api)
+            # 窗口创建后最大化 (Windows)
+            try:
+                if sys.platform == 'win32':
+                    SW_MAXIMIZE = 3
+                    hwnd = ctypes.windll.user32.FindWindowW(None, "MinIO 文件服务")
+                    if hwnd:
+                        ctypes.windll.user32.ShowWindow(hwnd, SW_MAXIMIZE)
+            except Exception:
+                pass
             webview.start()
             os._exit(0)
         except Exception as e:
