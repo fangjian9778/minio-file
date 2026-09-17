@@ -1484,15 +1484,19 @@
             var icon = getFileIcon(basename);
             var escapedFull = escapeHtml(f.name);
             var escapedBase = escapeHtml(basename);
+            // 判断是否为文件夹（以 / 结尾表示是空目录）
+            var isFolder = f.name.endsWith('/');
             html += '<tr>' +
                 '<td><input type="checkbox" class="file-checkbox" data-idx="' + idx + '" onchange="toggleDownloadFileSelectByIdx(this)"></td>' +
                 '<td><div class="file-name"><span class="file-icon">' + icon + '</span>' +
-                '<span class="name-text" title="' + escapedFull + ' (点击复制文件名)" style="cursor:pointer" onclick="copyFileNameByIdx(' + idx + ')">' + escapedBase + '</span></div></td>' +
+                '<span class="name-text" title="' + escapedFull + '" style="cursor:pointer" onclick="copyFileNameByIdx(' + idx + ')">' + escapedBase + '</span></div></td>' +
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
                 '<button class="btn btn-sm btn-outline" onclick="copyFileNameByIdx(' + idx + ')">&#128203; 复制</button>' +
-                '<button class="btn btn-primary btn-sm" onclick="downloadFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#11015; 下载</button>' +
+                (isFolder ? 
+                    '<button class="btn btn-sm btn-outline disabled" style="opacity:0.4;cursor:not-allowed" title="文件夹不可下载">&#11015; 下载</button>' :
+                    '<button class="btn btn-sm btn-primary" onclick="downloadFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#11015; 下载</button>') +
                 '<button class="btn btn-sm btn-danger" onclick="deleteFileByIdx(' + idx + ',\'' + escapeAttr(bucket) + '\')">&#128465;</button>' +
                 '</div></td></tr>';
         });
