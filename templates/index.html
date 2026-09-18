@@ -45,6 +45,53 @@
             display: flex;
             flex-direction: column;
             padding: 20px 0;
+            transition: all .3s ease;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .sidebar.collapsed {
+            width: 56px;
+            min-width: 56px;
+        }
+        .sidebar.collapsed .sidebar-logo span,
+        .sidebar.collapsed .nav-item span:not(.nav-icon),
+        .sidebar.collapsed .sidebar-footer span {
+            display: none;
+        }
+        .sidebar.collapsed .sidebar-logo {
+            justify-content: center;
+            padding: 0 10px 20px;
+        }
+        .sidebar.collapsed .nav-item {
+            justify-content: center;
+            padding: 12px 10px;
+        }
+        .sidebar.collapsed .sidebar-footer {
+            justify-content: center;
+            padding: 12px 10px;
+        }
+        .sidebar-toggle {
+            position: absolute;
+            top: 12px;
+            right: -12px;
+            width: 24px;
+            height: 24px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: .8rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+        .sidebar-toggle:hover {
+            background: var(--primary-dark);
+        }
+        .sidebar {
+            position: relative;
         }
         .sidebar-logo {
             padding: 0 20px 20px;
@@ -240,8 +287,11 @@
         }
         /* =================== File Table =================== */
         .file-table-area {
-            max-height: calc(100vh - 320px);
+            flex: 1;
+            min-height: 200px;
             overflow-y: auto;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
         }
         .file-table {
             width: 100%;
@@ -331,6 +381,60 @@
         .alert-success { background: #e6f4ea; color: #1e7e34; border: 1px solid #b7e1c3; }
         .alert-error { background: #fce8e6; color: #c5221f; border: 1px solid #f5b6b3; }
         .alert-info { background: #e8f0fe; color: #1967d2; border: 1px solid #a8c7fa; }
+        /* Toast Notification */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .toast {
+            padding: 12px 20px;
+            border-radius: var(--radius);
+            font-size: .9rem;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,.15);
+            animation: toastIn .3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            max-width: 400px;
+        }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--primary); }
+        @keyframes toastIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        /* =================== Bottom Progress =================== */
+        .bottom-progress {
+            position: fixed;
+            bottom: 0;
+            left: 200px;
+            right: 0;
+            background: white;
+            border-top: 1px solid var(--border);
+            padding: 8px 24px;
+            z-index: 100;
+            display: none;
+            box-shadow: 0 -2px 8px rgba(0,0,0,.1);
+        }
+        .bottom-progress.show { display: block; }
+        .bottom-progress .progress-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: .85rem;
+            margin-bottom: 4px;
+        }
+        .bottom-progress .progress-bar-container {
+            margin: 0;
+            height: 16px;
+        }
         /* =================== Empty State =================== */
         .empty-state {
             text-align: center;
@@ -349,7 +453,8 @@
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
             gap: 8px;
-            max-height: 250px;
+            max-height: 300px;
+            min-height: 100px;
             overflow-y: auto;
         }
         .folder-card {
@@ -362,6 +467,7 @@
             cursor: pointer;
             transition: all .15s;
             font-size: .8rem;
+            min-height: 40px;
         }
         .folder-card:hover { border-color: var(--primary); background: #f0f6ff; }
         .folder-card .folder-icon { font-size: 1.1rem; flex-shrink: 0; }
@@ -436,7 +542,8 @@
 </head>
 <body>
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
+        <button class="sidebar-toggle" onclick="toggleSidebar()">&#9664;</button>
         <div class="sidebar-logo">
             <span>&#128230;</span> MinIO 文件服务
         </div>
@@ -620,6 +727,20 @@
         </div>
     </div>
 
+    <!-- Bottom Progress Bar -->
+    <div class="bottom-progress" id="bottomProgress">
+        <div class="progress-info">
+            <span id="progressText">准备中...</span>
+            <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="bottomProgressBar" style="width:0%"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
     // =================== State ===================
     var allDownloadFiles = [];
@@ -648,6 +769,20 @@
             document.getElementById('pageTitle').textContent = this.textContent.trim();
         });
     });
+
+    // =================== Sidebar Toggle ===================
+    function toggleSidebar() {
+        var sidebar = document.getElementById('sidebar');
+        var toggle = sidebar.querySelector('.sidebar-toggle');
+        sidebar.classList.toggle('collapsed');
+        var isCollapsed = sidebar.classList.contains('collapsed');
+        toggle.innerHTML = isCollapsed ? '&#9654;' : '&#9664;';
+        // Update bottom progress bar left position
+        var progress = document.getElementById('bottomProgress');
+        if (progress) {
+            progress.style.left = isCollapsed ? '56px' : '200px';
+        }
+    }
 
     // =================== API Request ===================
     function apiRequest(method, url, data, callback) {
@@ -712,16 +847,22 @@
         return map[ext] || '&#128196;';
     }
 
-    // =================== Alert ===================
+    // =================== Toast Notification ===================
+    function showToast(type, message) {
+        var container = document.getElementById('toastContainer');
+        var toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        var icons = { success: '&#10003;', error: '&#10007;', info: '&#8505;' };
+        toast.innerHTML = '<span>' + (icons[type] || '') + '</span><span>' + escapeHtml(message) + '</span>';
+        container.appendChild(toast);
+        setTimeout(function() {
+            toast.style.animation = 'toastIn .3s ease reverse';
+            setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+    }
+    // Keep showAlert for backward compatibility but redirect to toast
     function showAlert(type, message) {
-        var alertMap = { success: 'alertSuccess', error: 'alertError', info: 'alertInfo' };
-        var textMap = { success: 'alertSuccessText', error: 'alertErrorText', info: 'alertInfoText' };
-        var alert = document.getElementById(alertMap[type]);
-        var text = document.getElementById(textMap[type]);
-        text.textContent = message;
-        alert.classList.add('show');
-        clearTimeout(alert._timer);
-        alert._timer = setTimeout(function() { alert.classList.remove('show'); }, 5000);
+        showToast(type, message);
     }
 
     // =================== Connection Status ===================
@@ -904,6 +1045,24 @@
         uploadFiles = [];
         renderUploadFileList();
         document.getElementById('uploadProgress').style.display = 'none';
+        hideBottomProgress();
+    }
+
+    // =================== Bottom Progress ===================
+    function showBottomProgress(text, percent) {
+        var progress = document.getElementById('bottomProgress');
+        progress.classList.add('show');
+        document.getElementById('progressText').textContent = text;
+        document.getElementById('progressPercent').textContent = percent + '%';
+        document.getElementById('bottomProgressBar').style.width = percent + '%';
+    }
+
+    function hideBottomProgress() {
+        document.getElementById('bottomProgress').classList.remove('show');
+    }
+
+    function updateBottomProgress(text, percent) {
+        showBottomProgress(text, percent);
     }
 
     function batchUpload() {
@@ -911,20 +1070,21 @@
         var bucket = document.getElementById('uploadBucket').value;
         if (!bucket) { showAlert('error', '请先选择目标桶'); return; }
         document.getElementById('batchUploadBtn').disabled = true;
-        document.getElementById('uploadProgress').style.display = 'block';
+        showBottomProgress('准备上传...', 0);
         var currentFile = 0;
         var prefix = uploadCurrentPrefix || '';
 
         function uploadNext() {
             if (currentFile >= uploadFiles.length) {
-                updateUploadProgress(uploadFiles.length, uploadFiles.length, 100);
-                showAlert('success', '全部文件上传完成！');
+                showBottomProgress('上传完成！', 100);
+                showAlert('success', '全部文件上传成功！');
                 document.getElementById('batchUploadBtn').disabled = false;
+                setTimeout(function() { hideBottomProgress(); }, 2000);
                 return;
             }
             var file = uploadFiles[currentFile];
-            updateUploadProgress(currentFile, uploadFiles.length, Math.round((currentFile / uploadFiles.length) * 100));
-            document.getElementById('uploadProgressText').textContent = '上传中: ' + file.name;
+            var pct = Math.round((currentFile / uploadFiles.length) * 100);
+            showBottomProgress('上传中: ' + file.name + ' (' + (currentFile + 1) + '/' + uploadFiles.length + ')', pct);
 
             var formData = new FormData();
             formData.append('file', file);
@@ -937,8 +1097,9 @@
             xhr.open('POST', '/minio/api/upload', true);
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
-                    var pct = Math.round((e.loaded / e.total) * 100);
-                    updateUploadProgress(currentFile, uploadFiles.length, pct);
+                    var filePct = Math.round((e.loaded / e.total) * 100);
+                    var totalPct = Math.round(((currentFile + filePct / 100) / uploadFiles.length) * 100);
+                    showBottomProgress('上传中: ' + file.name + ' (' + (currentFile + 1) + '/' + uploadFiles.length + ') ' + filePct + '%', totalPct);
                 }
             });
             xhr.onreadystatechange = function() {
@@ -951,10 +1112,12 @@
                         } else {
                             showAlert('error', '上传失败: ' + (resp.error || '未知错误'));
                             document.getElementById('batchUploadBtn').disabled = false;
+                            hideBottomProgress();
                         }
                     } catch(e) {
                         showAlert('error', '上传失败: ' + e.message);
                         document.getElementById('batchUploadBtn').disabled = false;
+                        hideBottomProgress();
                     }
                 }
             };
@@ -1271,19 +1434,24 @@
         var downloadId = 'dl-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
         var basename = fileBasename(objectName);
         activeDownloads[downloadId] = { name: basename, start: Date.now() };
+        showBottomProgress('正在下载: ' + basename, 0);
         if (hasInAppApi()) {
-            showAlert('info', '正在保存 "' + basename + '"，请选择保存位置...');
+            showAlert('info', '正在下载 "' + basename + '"...');
             window.pywebview.api.download(bucket, objectName, downloadId).then(function(res) {
                 if (res.status === 'ok') {
-                    showAlert('success', '已保存到: ' + res.path);
+                    showBottomProgress('下载完成: ' + basename, 100);
+                    showAlert('success', '下载完成！已保存到: ' + res.path);
                     delete activeDownloads[downloadId];
+                    setTimeout(function() { hideBottomProgress(); }, 2000);
                 } else if (res.status !== 'cancelled') {
                     showAlert('error', '下载失败: ' + res.message);
                     delete activeDownloads[downloadId];
+                    hideBottomProgress();
                 }
             });
         } else {
             window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
+            hideBottomProgress();
         }
     }
 
@@ -1291,15 +1459,23 @@
         var bucket = document.getElementById('downloadBucket').value;
         var names = Object.keys(selectedDownloadFiles);
         if (names.length === 0) { showAlert('error', '请先选择要下载的文件'); return; }
+        showBottomProgress('正在打包下载 ' + names.length + ' 个文件...', 0);
         if (hasInAppApi()) {
             showAlert('info', '正在准备下载 ' + names.length + ' 个文件...');
             window.pywebview.api.batch_download(bucket, names).then(function(res) {
-                if (res.status === 'ok') showAlert('success', '已保存到: ' + res.path);
-                else if (res.status !== 'cancelled') showAlert('error', '下载失败: ' + res.message);
+                if (res.status === 'ok') {
+                    showBottomProgress('下载完成！', 100);
+                    showAlert('success', '下载完成！已保存到: ' + res.path);
+                    setTimeout(function() { hideBottomProgress(); }, 2000);
+                } else if (res.status !== 'cancelled') {
+                    showAlert('error', '下载失败: ' + res.message);
+                    hideBottomProgress();
+                }
             });
         } else {
             var filesParam = encodeURIComponent(names.join(','));
             window.open('/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + filesParam, '_blank');
+            hideBottomProgress();
         }
     }
 
