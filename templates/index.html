@@ -9,7 +9,14 @@
         html, body {
             height: 100%;
             width: 100%;
-            overflow: hidden;
+            overflow: hidden !important;
+        }
+        /* Hide scrollbar on non-scrollable containers */
+        .main, .panel, .card {
+            scrollbar-width: none;
+        }
+        .main::-webkit-scrollbar, .panel::-webkit-scrollbar, .card::-webkit-scrollbar {
+            display: none;
         }
         :root {
             --primary: #4285f4;
@@ -167,12 +174,33 @@
         }
         .main-content {
             flex: 1;
-            overflow: auto;
+            overflow: hidden;
             padding: 20px 24px;
+            min-height: 0;
+            min-width: 0;
         }
         /* =================== Panels =================== */
         .panel { display: none; }
-        .panel.active { display: block; }
+        .panel.active {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+        .panel.active > .card {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+        .panel.active > .card > .file-table-area {
+            flex: 1;
+            min-height: 120px;
+        }
+        .panel.active > .card > .pagination {
+            flex-shrink: 0;
+        }
         /* =================== Card =================== */
         .card {
             background: var(--card-bg);
@@ -288,8 +316,10 @@
         /* =================== File Table =================== */
         .file-table-area {
             flex: 1;
-            min-height: 200px;
+            min-height: 120px;
+            max-height: none;
             overflow-y: auto;
+            overflow-x: hidden;
             border: 1px solid var(--border);
             border-radius: var(--radius);
         }
@@ -731,7 +761,10 @@
     <div class="bottom-progress" id="bottomProgress">
         <div class="progress-info">
             <span id="progressText">准备中...</span>
-            <span id="progressPercent">0%</span>
+            <div style="display:flex;gap:8px;align-items:center">
+                <span id="progressPercent">0%</span>
+                <button class="btn btn-sm btn-danger" id="cancelProgressBtn" onclick="cancelCurrentTransfer()" style="padding:2px 10px;font-size:.75rem;display:none">&#10005; 取消</button>
+            </div>
         </div>
         <div class="progress-bar-container">
             <div class="progress-bar" id="bottomProgressBar" style="width:0%"></div>
@@ -757,6 +790,10 @@
     var activeDownloads = {};
     var uploadId = '';
     var progressTimer = null;
+    // For cancel support
+    var currentUploadXhr = null;
+    var currentDownloadXhr = null;
+    var currentTransferType = null; // 'upload' | 'download' | null
 
     // =================== Tab Navigation ===================
     document.querySelectorAll('.nav-item').forEach(function(item) {
@@ -1059,6 +1096,27 @@
 
     function hideBottomProgress() {
         document.getElementById('bottomProgress').classList.remove('show');
+        document.getElementById('cancelProgressBtn').style.display = 'none';
+    }
+
+    function showCancelBtn() {
+        document.getElementById('cancelProgressBtn').style.display = 'inline-flex';
+    }
+
+    function cancelCurrentTransfer() {
+        if (currentTransferType === 'upload' && currentUploadXhr) {
+            currentUploadXhr.abort();
+            currentUploadXhr = null;
+            showToast('error', '上传已取消');
+            hideBottomProgress();
+            document.getElementById('batchUploadBtn').disabled = false;
+        } else if (currentTransferType === 'download' && currentDownloadXhr) {
+            currentDownloadXhr.abort();
+            currentDownloadXhr = null;
+            showToast('error', '下载已取消');
+            hideBottomProgress();
+        }
+        currentTransferType = null;
     }
 
     function updateBottomProgress(text, percent) {
@@ -1094,6 +1152,9 @@
             formData.append('custom_name', uploadPath);
 
             var xhr = new XMLHttpRequest();
+            currentUploadXhr = xhr;
+            currentTransferType = 'upload';
+            showCancelBtn();
             xhr.open('POST', '/minio/api/upload', true);
             xhr.upload.addEventListener('progress', function(e) {
                 if (e.lengthComputable) {
@@ -1104,6 +1165,12 @@
             });
             xhr.onreadystatechange = function() {
                 if (xhr.readyState === 4) {
+                    currentUploadXhr = null;
+                    currentTransferType = null;
+                    if (xhr.status === 0 && xhr.responseText === '') {
+                        // Aborted (user cancelled)
+                        return;
+                    }
                     try {
                         var resp = JSON.parse(xhr.responseText);
                         if (xhr.status === 200) {
@@ -1431,52 +1498,138 @@
     }
 
     function downloadFile(bucket, objectName) {
-        var downloadId = 'dl-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6);
         var basename = fileBasename(objectName);
-        activeDownloads[downloadId] = { name: basename, start: Date.now() };
+        var controller = new AbortController();
+        currentDownloadXhr = controller;
+        currentTransferType = 'download';
+        showCancelBtn();
         showBottomProgress('正在下载: ' + basename, 0);
-        if (hasInAppApi()) {
-            showAlert('info', '正在下载 "' + basename + '"...');
-            window.pywebview.api.download(bucket, objectName, downloadId).then(function(res) {
-                if (res.status === 'ok') {
-                    showBottomProgress('下载完成: ' + basename, 100);
-                    showAlert('success', '下载完成！已保存到: ' + res.path);
-                    delete activeDownloads[downloadId];
-                    setTimeout(function() { hideBottomProgress(); }, 2000);
-                } else if (res.status !== 'cancelled') {
-                    showAlert('error', '下载失败: ' + res.message);
-                    delete activeDownloads[downloadId];
+        var url = '/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName);
+        fetch(url, { signal: controller.signal })
+            .then(function(resp) {
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var total = resp.headers.get('Content-Length');
+                var reader = resp.body.getReader();
+                var chunks = [];
+                var loaded = 0;
+                function read() {
+                    reader.read().then(function(r) {
+                        if (r.done) {
+                            var blob = new Blob(chunks);
+                            var cd = resp.headers.get('Content-Disposition') || 'attachment; filename="' + basename + '"';
+                            var m = cd.match(/filename="?([^";]+)"?/);
+                            var fname = m ? m[1] : basename;
+                            var a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = fname;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            showBottomProgress('下载完成: ' + basename, 100);
+                            setTimeout(function() { hideBottomProgress(); }, 1500);
+                            currentDownloadXhr = null;
+                            currentTransferType = null;
+                            return;
+                        }
+                        chunks.push(r.value);
+                        loaded += r.value.length;
+                        var pct = total ? Math.round((loaded / parseInt(total)) * 100) : Math.round(loaded / 1024 / 1024);
+                        showBottomProgress('下载中: ' + basename, total ? pct + '%' : (loaded / 1024 / 1024).toFixed(1) + ' MB');
+                        read();
+                    }).catch(function(err) {
+                        currentDownloadXhr = null;
+                        currentTransferType = null;
+                        if (err.name === 'AbortError') {
+                            showToast('error', '下载已取消');
+                            hideBottomProgress();
+                        } else {
+                            showToast('error', '下载失败: ' + err.message);
+                            hideBottomProgress();
+                        }
+                    });
+                }
+                read();
+            })
+            .catch(function(err) {
+                currentDownloadXhr = null;
+                currentTransferType = null;
+                if (err.name === 'AbortError') {
+                    showToast('error', '下载已取消');
+                    hideBottomProgress();
+                } else {
+                    showToast('error', '下载失败: ' + err.message);
                     hideBottomProgress();
                 }
             });
-        } else {
-            window.open('/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName), '_blank');
-            hideBottomProgress();
-        }
     }
 
     function batchDownloadSelected() {
         var bucket = document.getElementById('downloadBucket').value;
         var names = Object.keys(selectedDownloadFiles);
         if (names.length === 0) { showAlert('error', '请先选择要下载的文件'); return; }
+        var controller = new AbortController();
+        currentDownloadXhr = controller;
+        currentTransferType = 'download';
+        showCancelBtn();
         showBottomProgress('正在打包下载 ' + names.length + ' 个文件...', 0);
-        if (hasInAppApi()) {
-            showAlert('info', '正在准备下载 ' + names.length + ' 个文件...');
-            window.pywebview.api.batch_download(bucket, names).then(function(res) {
-                if (res.status === 'ok') {
-                    showBottomProgress('下载完成！', 100);
-                    showAlert('success', '下载完成！已保存到: ' + res.path);
-                    setTimeout(function() { hideBottomProgress(); }, 2000);
-                } else if (res.status !== 'cancelled') {
-                    showAlert('error', '下载失败: ' + res.message);
+        var filesParam = encodeURIComponent(names.join(','));
+        var url = '/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + filesParam;
+        fetch(url, { signal: controller.signal })
+            .then(function(resp) {
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var total = resp.headers.get('Content-Length');
+                var reader = resp.body.getReader();
+                var chunks = [];
+                var loaded = 0;
+                function read() {
+                    reader.read().then(function(r) {
+                        if (r.done) {
+                            var blob = new Blob(chunks);
+                            var cd = resp.headers.get('Content-Disposition') || 'attachment; filename="download.zip"';
+                            var m = cd.match(/filename="?([^";]+)"?/);
+                            var fname = m ? m[1] : 'download-' + Date.now() + '.zip';
+                            var a = document.createElement('a');
+                            a.href = URL.createObjectURL(blob);
+                            a.download = fname;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            showBottomProgress('下载完成！', 100);
+                            setTimeout(function() { hideBottomProgress(); }, 1500);
+                            currentDownloadXhr = null;
+                            currentTransferType = null;
+                            return;
+                        }
+                        chunks.push(r.value);
+                        loaded += r.value.length;
+                        var pct = total ? Math.round((loaded / parseInt(total)) * 100) : Math.round(loaded / 1024 / 1024);
+                        showBottomProgress('下载中 ' + names.length + ' 个文件...', total ? pct + '%' : (loaded / 1024 / 1024).toFixed(1) + ' MB');
+                        read();
+                    }).catch(function(err) {
+                        currentDownloadXhr = null;
+                        currentTransferType = null;
+                        if (err.name === 'AbortError') {
+                            showToast('error', '下载已取消');
+                            hideBottomProgress();
+                        } else {
+                            showToast('error', '下载失败: ' + err.message);
+                            hideBottomProgress();
+                        }
+                    });
+                }
+                read();
+            })
+            .catch(function(err) {
+                currentDownloadXhr = null;
+                currentTransferType = null;
+                if (err.name === 'AbortError') {
+                    showToast('error', '下载已取消');
+                    hideBottomProgress();
+                } else {
+                    showToast('error', '下载失败: ' + err.message);
                     hideBottomProgress();
                 }
             });
-        } else {
-            var filesParam = encodeURIComponent(names.join(','));
-            window.open('/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + filesParam, '_blank');
-            hideBottomProgress();
-        }
     }
 
     function deleteFile(bucket, objectName) {
