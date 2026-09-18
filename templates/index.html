@@ -683,36 +683,45 @@
         .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
         /* =================== Folder Browser =================== */
         .folder-browser {
-            border: 1px solid var(--border);
+            border: 1px solid var(--card-border);
             border-radius: var(--radius);
-            padding: 12px;
-            margin-top: 8px;
+            padding: 6px 8px;
+            margin-top: 6px;
+            max-width: 620px;
         }
         .folder-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 8px;
-            max-height: 300px;
-            min-height: 100px;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 5px;
+            max-height: 180px;
+            min-height: 40px;
             overflow-y: auto;
+            overflow-x: hidden;
+            align-content: start;
         }
+        .folder-grid::-webkit-scrollbar { width: 6px; }
+        .folder-grid::-webkit-scrollbar-track { background: rgba(0,0,0,.2); }
+        .folder-grid::-webkit-scrollbar-thumb { background: var(--primary-dark); border-radius: 3px; }
+        .folder-grid::-webkit-scrollbar-thumb:hover { background: var(--primary); }
         .folder-card {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             background: rgba(0, 229, 255, 0.05);
             border: 1px solid var(--card-border);
             color: var(--text);
-            transition: all .2s;
-            padding: 8px 10px;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
+            padding: 5px 8px;
+            border-radius: 4px;
             cursor: pointer;
-            transition: all .15s;
-            font-size: .8rem;
-            min-height: 40px;
+            font-size: .78rem;
+            min-height: 28px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+            transition: all .2s;
         }
-        .folder-card:hover { border-color: var(--primary); background: #f0f6ff; }
+        .folder-card:hover { border-color: var(--primary); background: rgba(0,229,255,.12); box-shadow: 0 0 8px var(--primary-glow); }
         .folder-card .folder-icon { font-size: 1.1rem; flex-shrink: 0; }
         /* =================== Breadcrumb =================== */
         .breadcrumb {
