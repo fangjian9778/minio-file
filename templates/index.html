@@ -836,6 +836,13 @@
             flex-shrink: 0;
         }
     </style>
+    <!-- 同步应用保存的主题, 避免首屏闪烁 -->
+    <script>
+        (function(){
+            try { var t = localStorage.getItem('minio-theme') || 'light'; } catch(e) { var t = 'light'; }
+            document.documentElement.setAttribute('data-theme', t);
+        })();
+    </script>
 </head>
 <body>
     <canvas id="particleCanvas"></canvas>
@@ -2004,10 +2011,15 @@
         var cur = document.documentElement.getAttribute('data-theme') || 'light';
         applyTheme(cur === 'dark' ? 'light' : 'dark');
     }
+    // 同步脚本已经应用了主题, 这里只更新图标
     (function() {
-        var saved = 'light';
-        try { saved = localStorage.getItem('minio-theme') || 'light'; } catch(e) {}
-        applyTheme(saved);
+        var cur = document.documentElement.getAttribute('data-theme') || 'light';
+        var icon = document.getElementById('themeIcon');
+        if (icon) icon.innerHTML = cur === 'dark' ? '&#127769;' : '&#9728;';
+        var toggle = document.getElementById('themeToggle');
+        if (toggle) toggle.title = cur === 'dark' ? '切换到白昼模式' : '切换到深色模式';
+        var canvas = document.getElementById('particleCanvas');
+        if (canvas) canvas.style.opacity = cur === 'dark' ? '1' : '0.25';
     })();
 
     // =================== Init ===================
