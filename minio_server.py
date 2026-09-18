@@ -533,9 +533,9 @@ def list_folders():
 def list_files():
     bucket_name = request.args.get("bucket", "")
     prefix = request.args.get("prefix", "")
-    limit = int(request.args.get("limit", "2000"))
-    if limit > 10000:
-        limit = 10000
+    limit = int(request.args.get("limit", "500"))
+    if limit > 5000:
+        limit = 5000
     offset = int(request.args.get("offset", "0"))
     try:
         client = get_minio_client()
@@ -544,44 +544,57 @@ def list_files():
         if not bucket_name:
             return jsonify({"error": "Bucket name is required."}), 400
 
-        objects = client.list_objects(bucket_name, prefix=prefix or "", recursive=True)
+        # 只列当前层 (recursive=False), 避免大桶深层目录递归列举全部子孙对象导致超时
+        objects = client.list_objects(bucket_name, prefix=prefix or "", recursive=False)
         all_files = []
-        collected = 0
         skip = offset
         for obj in objects:
-            if collected >= (offset + limit):
+            # 过滤目录: S3 的目录以 '/' 结尾, 或 size == 0 且没有最后修改时间
+            name = obj.object_name
+            if name.endswith("/"):
+                continue
+            # 去掉 prefix 前缀, 只显示当前层文件名
+            display_name = name[len(prefix):] if prefix and name.startswith(prefix) else name
+            if "/" in display_name:
+                # 还有子路径意味着它是更深层的, recursive=False 下不应出现, 保险过滤
+                continue
+            if len(all_files) >= (offset + limit):
                 break
+            last_mod = ""
+            size = 0
+            etag = ""
             if IS_MINIO_V7_API:
-                last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S") if obj.last_modified else ""
-                file_info = {
-                    "name": obj.object_name,
-                    "size": obj.size,
-                    "last_modified": last_mod,
-                    "etag": obj.etag,
-                }
+                if obj.last_modified:
+                    last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S")
+                size = obj.size or 0
+                etag = obj.etag or ""
             else:
+                size = obj.size or 0
                 try:
-                    stat = client.stat_object(bucket_name, obj.object_name)
-                    file_info = {
-                        "name": obj.object_name,
-                        "size": stat.size,
-                        "last_modified": str(stat.last_modified),
-                        "etag": stat.etag,
-                    }
+                    last_mod = str(obj.last_modified) if obj.last_modified else ""
                 except Exception:
-                    file_info = {
-                        "name": obj.object_name,
-                        "size": 0,
-                        "last_modified": "",
-                        "etag": "",
-                    }
-            collected += 1
+                    last_mod = ""
+                etag = obj.etag or ""
+
             if skip > 0:
                 skip -= 1
                 continue
-            all_files.append(file_info)
+            all_files.append({
+                "name": name,
+                "display_name": display_name,
+                "size": size,
+                "last_modified": last_mod,
+                "etag": etag,
+            })
 
-        return jsonify({"files": all_files, "bucket": bucket_name, "count": len(all_files), "limit": limit, "offset": offset, "total_collected": collected})
+        return jsonify({
+            "files": all_files,
+            "bucket": bucket_name,
+            "count": len(all_files),
+            "limit": limit,
+            "offset": offset,
+            "total_collected": len(all_files),
+        })
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
     except Exception as e:

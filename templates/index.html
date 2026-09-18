@@ -799,7 +799,8 @@
             border-radius: var(--radius);
             padding: 6px 8px;
             margin-top: 6px;
-            max-width: 620px;
+            width: 100%;
+            box-sizing: border-box;
         }
         .folder-grid {
             display: grid;
@@ -834,7 +835,16 @@
             transition: all .2s;
         }
         .folder-card:hover { border-color: var(--primary); background: var(--sidebar-active); box-shadow: var(--shadow-glow); }
-        .folder-card .folder-icon { font-size: 1.1rem; flex-shrink: 0; }
+        .folder-card .folder-icon {
+            width: 20px; height: 20px;
+            flex-shrink: 0;
+            color: var(--primary);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .folder-card .folder-icon svg { width: 100%; height: 100%; fill: currentColor; }
+        .folder-card:hover .folder-icon { color: var(--neon-purple); }
         /* =================== Breadcrumb =================== */
         .breadcrumb {
             display: flex;
@@ -1135,6 +1145,9 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script>
+    // =================== UI Constants ===================
+    var FOLDER_SVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>';
+
     // =================== State ===================
     var allDownloadFiles = [];
     var selectedDownloadFiles = {};
@@ -1384,7 +1397,7 @@
         // Grid
         var gridHtml = folders.map(function(f) {
             return '<div class="folder-card" data-folder="' + escapeAttr(f) + '">' +
-                '<span class="folder-icon">&#128193;</span>' + escapeHtml(fileBasename(f)) + '</div>';
+                '<span class="folder-icon">' + FOLDER_SVG + '</span>' + escapeHtml(fileBasename(f)) + '</div>';
         }).join('');
         document.getElementById('uploadFolderGrid').innerHTML = gridHtml || '<p style="color:var(--text-secondary);font-size:.85rem">无子文件夹</p>';
         // Click handler
@@ -1620,7 +1633,7 @@
         document.getElementById('downloadBreadcrumb').innerHTML = bcHtml;
         var gridHtml = folders.map(function(f) {
             return '<div class="folder-card" data-folder="' + escapeAttr(f) + '">' +
-                '<span class="folder-icon">&#128193;</span>' + escapeHtml(fileBasename(f)) + '</div>';
+                '<span class="folder-icon">' + FOLDER_SVG + '</span>' + escapeHtml(fileBasename(f)) + '</div>';
         }).join('');
         document.getElementById('downloadFolderGrid').innerHTML = gridHtml || '<p style="color:var(--text-secondary);font-size:.85rem">无子文件夹</p>';
         document.querySelectorAll('#downloadFolderGrid .folder-card').forEach(function(card) {
