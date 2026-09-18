@@ -73,7 +73,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='minio_file_service',
+    name='minio_file_manager',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -95,5 +95,5 @@ coll = COLLECT(
     strip=False,
     upx=False,  # 禁用 UPX 压缩
     upx_exclude=[],
-    name='minio_file_service',
+    name='minio_file_manager',
 )

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MinIO 文件管理服务</title>
+    <title>MINIO 存储管理</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         html, body {
@@ -111,31 +111,48 @@
             min-width: 200px;
         }
         .sidebar-logo {
-            padding: 0 14px 14px;
+            padding: 4px 14px 10px;
             font-size: .85rem;
             font-weight: 700;
             border-bottom: 1px solid var(--card-border);
             margin-bottom: 10px;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
             white-space: nowrap;
             overflow: hidden;
             letter-spacing: 1px;
         }
+        .sidebar.expanded .sidebar-logo { justify-content: flex-start; }
         .sidebar-logo .logo-icon {
             width: 28px; height: 28px;
-            background: linear-gradient(135deg, var(--primary), var(--neon-purple));
-            border-radius: 6px;
+            background: transparent;
+            border-radius: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: .9rem;
             flex-shrink: 0;
-            box-shadow: 0 0 10px var(--primary-glow);
+            position: relative;
+            box-shadow: none;
         }
-        .sidebar-logo .logo-text { opacity: 0; transition: opacity .25s ease 0s; }
-        .sidebar.expanded .sidebar-logo .logo-text { opacity: 1; transition-delay: .1s; }
+        .sidebar-logo .logo-icon svg {
+            width: 100%; height: 100%;
+            filter: drop-shadow(0 0 6px var(--primary-glow));
+        }
+        .sidebar-logo .logo-text {
+            opacity: 0;
+            visibility: hidden;
+            width: 0;
+            overflow: hidden;
+            transition: opacity .25s ease .1s, visibility .25s, width .25s;
+        }
+        .sidebar.expanded .sidebar-logo .logo-text {
+            opacity: 1;
+            visibility: visible;
+            width: auto;
+            transition: opacity .25s ease .1s, visibility 0s, width .25s;
+        }
         .sidebar-toggle {
             position: absolute;
             top: 50%;
@@ -190,7 +207,9 @@
         .sidebar:not(.expanded) .nav-item {
             justify-content: center;
             padding: 10px 0;
+            margin: 0 6px;
         }
+        .sidebar:not(.expanded) .nav-item.active::before { left: -10px; }
         .nav-item::before {
             content: '';
             position: absolute;
@@ -213,9 +232,17 @@
         .nav-item.active::before { height: 60%; }
         .nav-item .nav-label {
             opacity: 0;
-            transition: opacity .25s ease .05s;
+            visibility: hidden;
+            width: 0;
+            overflow: hidden;
+            transition: opacity .25s ease .05s, visibility 0s .25s, width .25s;
         }
-        .sidebar.expanded .nav-item .nav-label { opacity: 1; }
+        .sidebar.expanded .nav-item .nav-label {
+            opacity: 1;
+            visibility: visible;
+            width: auto;
+            transition: opacity .25s ease .05s, visibility 0s, width .25s;
+        }
         .nav-icon {
             font-size: 1rem;
             width: 20px;
@@ -386,6 +413,37 @@
             margin-bottom: 6px;
             letter-spacing: .5px;
             text-transform: uppercase;
+        }
+        /* 横向表单项: label + 控件纵向堆叠, 各列横向对齐 */
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+        .form-row .form-col {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .form-row .form-col label {
+            margin-bottom: 6px;
+            flex-shrink: 0;
+        }
+        .form-row .form-col .form-control {
+            height: 36px;
+        }
+        .form-row .form-col-search { flex: 2; }
+        .form-row .form-col-bucket { flex: 1; }
+        .form-row .form-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            flex-shrink: 0;
+        }
+        .form-row .form-actions .btn {
+            height: 36px;
+            margin-top: 20px;  /* label高度(22px) + margin-bottom(6px) - btn自身padding补偿 */
         }
         .form-control {
             width: 100%;
@@ -857,20 +915,36 @@
     <canvas id="particleCanvas"></canvas>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="收缩">&#10094;</button>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="展开">&#10095;</button>
         <div class="sidebar-logo">
-            <div class="logo-icon">&#9881;</div>
-            <span class="logo-text">MINIO 云存储</span>
+            <div class="logo-icon">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="cloudGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:var(--primary)"/>
+                            <stop offset="100%" style="stop-color:var(--neon-purple)"/>
+                        </linearGradient>
+                    </defs>
+                    <!-- 云朵轮廓 -->
+                    <path fill="url(#cloudGrad)" d="M22 22H10a7 7 0 0 1-.6-13.97 8 8 0 0 1 15.2 1.47A5.5 5.5 0 0 1 22 22z"/>
+                    <!-- MINIO 文字 -->
+                    <text x="16" y="18.5" text-anchor="middle" dominant-baseline="middle"
+                          font-family="'Segoe UI', Arial, sans-serif"
+                          font-size="7.5" font-weight="900" fill="#fff"
+                          letter-spacing="-0.3">M</text>
+                </svg>
+            </div>
+            <span class="logo-text">MINIO 存储管理</span>
         </div>
         <nav class="sidebar-nav">
             <div class="nav-item active" data-panel="config">
-                <span class="nav-icon">&#9881;</span> 连接配置
+                <span class="nav-icon">&#9881;</span><span class="nav-label">连接配置</span>
             </div>
             <div class="nav-item" data-panel="upload">
-                <span class="nav-icon">&#8679;</span> 文件上传
+                <span class="nav-icon">&#8679;</span><span class="nav-label">文件上传</span>
             </div>
             <div class="nav-item" data-panel="download">
-                <span class="nav-icon">&#8681;</span> 文件下载
+                <span class="nav-icon">&#8681;</span><span class="nav-label">文件下载</span>
             </div>
         </nav>
         <div class="sidebar-footer">
@@ -931,12 +1005,14 @@
                     <div class="card-title"><span class="icon">&#8679;</span> 文件上传</div>
                     <!-- Path Bar -->
                     <div class="path-bar" id="uploadPathBar">当前路径: <b>未选择桶</b></div>
-                    <!-- Bucket Selection -->
-                    <div class="form-group">
-                        <label>选择目标桶</label>
-                        <select class="form-control" id="uploadBucket" onchange="onUploadBucketChange()">
-                            <option value="">-- 选择桶 --</option>
-                        </select>
+                    <!-- Bucket Selection (与下载面板样式同步) -->
+                    <div class="form-row">
+                        <div class="form-col form-col-bucket">
+                            <label>选择目标桶</label>
+                            <select class="form-control" id="uploadBucket" onchange="onUploadBucketChange()">
+                                <option value="">-- 选择桶 --</option>
+                            </select>
+                        </div>
                     </div>
                     <!-- Folder Browser -->
                     <div class="folder-browser hidden" id="uploadFolderBrowser">
@@ -980,21 +1056,21 @@
                     <div class="card-title"><span class="icon">&#8681;</span> 文件下载</div>
                     <!-- Path Bar -->
                     <div class="path-bar" id="downloadPathBar">当前路径: <b>未选择桶</b></div>
-                    <!-- Bucket Selection -->
-                    <div class="form-group" style="display:flex;gap:8px;align-items:end">
-                        <div style="flex:1">
+                    <!-- Bucket Selection + Search (横向对齐) -->
+                    <div class="form-row">
+                        <div class="form-col form-col-bucket">
                             <label>选择桶</label>
                             <select class="form-control" id="downloadBucket" onchange="onDownloadBucketChange()">
                                 <option value="">-- 选择桶 --</option>
                             </select>
                         </div>
-                        <div style="flex:2">
+                        <div class="form-col form-col-search">
                             <label>搜索文件</label>
-                            <div class="search-bar">
-                                <input type="text" class="form-control" id="downloadSearchInput" placeholder="输入文件名 (包含/正则自动识别)...">
-                            </div>
+                            <input type="text" class="form-control" id="downloadSearchInput" placeholder="输入文件名 (包含/正则自动识别)...">
                         </div>
-                        <button class="btn btn-primary" style="margin-bottom:0;height:36px" onclick="loadDownloadFiles()">&#128269; 查询</button>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" onclick="loadDownloadFiles()">&#128269; 查询</button>
+                        </div>
                     </div>
                     <!-- Folder Browser -->
                     <div class="folder-browser hidden" id="downloadFolderBrowser">
@@ -1097,7 +1173,10 @@
         sidebar.classList.toggle('expanded');
         var isExpanded = sidebar.classList.contains('expanded');
         var toggle = document.getElementById('sidebarToggle');
-        if (toggle) toggle.title = isExpanded ? '收缩' : '展开';
+        if (toggle) {
+            toggle.innerHTML = isExpanded ? '&#10094;' : '&#10095;';
+            toggle.title = isExpanded ? '收缩' : '展开';
+        }
         var progress = document.getElementById('bottomProgress');
         if (progress) {
             progress.style.left = isExpanded ? '200px' : '56px';

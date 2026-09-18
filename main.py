@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-MinIO 文件服务 - 桌面版入口
+MINIO 文件管理 - 桌面版入口
 双击 exe 后弹出程序窗口, Web 页面内置在窗口内, 无需手动打开浏览器输入网址.
 依赖: pywebview (Windows 上使用 Edge WebView2 内核)
 """
@@ -77,6 +77,7 @@ def _run_flask(host, port):
 
 _api_window = None
 _current_port = 5000
+APP_TITLE = "MINIO 文件管理"
 
 
 def _current_window():
@@ -259,13 +260,13 @@ def main():
         icon_path = _resource_path(os.path.join("assets", "app.ico"))
         if os.path.exists(icon_path):
             window_kwargs["icon"] = icon_path
-        _api_window = webview.create_window("MinIO 文件服务", url, **window_kwargs)
+        _api_window = webview.create_window(APP_TITLE, url, **window_kwargs)
         # 窗口创建后最大化 (Windows)
         try:
             if sys.platform == 'win32':
                 # 使用 Windows API 最大化窗口
                 SW_MAXIMIZE = 3
-                hwnd = ctypes.windll.user32.FindWindowW(None, "MinIO 文件服务")
+                hwnd = ctypes.windll.user32.FindWindowW(None, APP_TITLE)
                 if hwnd:
                     ctypes.windll.user32.ShowWindow(hwnd, SW_MAXIMIZE)
         except Exception as e:
@@ -280,13 +281,13 @@ def main():
             import webview
             import ctypes
             js_api = _JsApi()
-            _api_window = webview.create_window("MinIO 文件服务", url, width=1280, height=800,
+            _api_window = webview.create_window(APP_TITLE, url, width=1280, height=800,
                                                 min_size=(900, 600), js_api=js_api)
             # 窗口创建后最大化 (Windows)
             try:
                 if sys.platform == 'win32':
                     SW_MAXIMIZE = 3
-                    hwnd = ctypes.windll.user32.FindWindowW(None, "MinIO 文件服务")
+                    hwnd = ctypes.windll.user32.FindWindowW(None, APP_TITLE)
                     if hwnd:
                         ctypes.windll.user32.ShowWindow(hwnd, SW_MAXIMIZE)
             except Exception:
