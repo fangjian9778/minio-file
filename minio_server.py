@@ -257,10 +257,12 @@ def save_config(config):
 
 
 def _persist_config():
-    # 磁盘只存密文: 内存中的明文密钥在此加密
+    # 磁盘只存密文: 内存中的明文敏感信息在此加密
     persisted = dict(minio_config)
     persisted["access_key"] = encrypt_secret(minio_config.get("access_key", ""))
     persisted["secret_key"] = encrypt_secret(minio_config.get("secret_key", ""))
+    persisted["endpoint"] = encrypt_secret(minio_config.get("endpoint", ""))
+    persisted["server_address"] = encrypt_secret(minio_config.get("server_address", ""))
     data = {
         "minio_config": persisted,
         "path_config": path_config,
@@ -280,9 +282,9 @@ def load_config():
                 saved = json.load(f)
                 if "minio_config" in saved:
                     saved_minio = dict(saved["minio_config"])
-                    # 解密持久化的密钥(兼容旧明文)
-                    saved_minio["access_key"] = decrypt_secret(saved_minio.get("access_key", ""))
-                    saved_minio["secret_key"] = decrypt_secret(saved_minio.get("secret_key", ""))
+                    # 解密持久化的敏感字段 (兼容旧明文 / 空值)
+                    for _k in ("access_key", "secret_key", "endpoint", "server_address"):
+                        saved_minio[_k] = decrypt_secret(saved_minio.get(_k, ""))
                     minio_config.update(saved_minio)
                 if "path_config" in saved:
                     path_config.update(saved["path_config"])
@@ -362,8 +364,9 @@ def get_config():
         "endpoint": host + ":" + port,
         "path_prefix": minio_config.get("path_prefix") or prefix or "",
         "server_address": server_address,
-        "access_key": minio_config["access_key"],
-        "secret_key": minio_config["secret_key"],
+        # 凭据不返回明文, 只告诉前端是否已配置
+        "access_key_set": bool(minio_config.get("access_key")),
+        "secret_key_set": bool(minio_config.get("secret_key")),
         "secure": minio_config["secure"],
         "connected": False,
     }
@@ -399,18 +402,26 @@ def set_config():
     if not host:
         return jsonify({"error": "MinIO server address is required."}), 400
 
+    # 凭据: 前端可能传空 (mask 状态下), 空则保留旧值
+    new_ak = data.get("access_key", "").strip()
+    new_sk = data.get("secret_key", "").strip()
+    if not new_ak:
+        new_ak = minio_config.get("access_key", "")
+    if not new_sk:
+        new_sk = minio_config.get("secret_key", "")
+    if not new_ak or not new_sk:
+        return jsonify({"error": "Access key and secret key are required."}), 400
+
     config = {
         "server_address": server_address or effective,
         "endpoint": host + ":" + port,
-        "access_key": data.get("access_key", "").strip(),
-        "secret_key": data.get("secret_key", "").strip(),
+        "access_key": new_ak,
+        "secret_key": new_sk,
         "secure": data.get("secure", False),
         "host": host,
         "port": port,
         "path_prefix": path_prefix,
     }
-    if not config["access_key"] or not config["secret_key"]:
-        return jsonify({"error": "Access key and secret key are required."}), 400
 
     save_config(config)
     try:

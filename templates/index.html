@@ -414,6 +414,39 @@
             letter-spacing: .5px;
             text-transform: uppercase;
         }
+        .key-badge {
+            font-size: .7rem;
+            font-weight: normal;
+            text-transform: none;
+            letter-spacing: 0;
+            color: #52c41a;
+            background: rgba(82, 196, 26, 0.12);
+            padding: 1px 8px;
+            border-radius: 10px;
+            margin-left: 6px;
+        }
+        .mask-wrap { position: relative; display: flex; align-items: center; }
+        .mask-wrap .form-control { flex: 1; padding-right: 72px; }
+        .mask-wrap .form-control[readonly] {
+            background: var(--sidebar-hover);
+            color: var(--text-secondary);
+            cursor: default;
+        }
+        .mask-edit-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: .72rem;
+            padding: 2px 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .mask-edit-btn:hover { border-color: var(--primary); color: var(--primary); }
         /* 横向表单项: label + 控件纵向堆叠, 各列横向对齐 */
         .form-row {
             display: flex;
@@ -998,12 +1031,18 @@
                         <input type="text" class="form-control" id="serverAddress" placeholder="例: 10.204.184.236:8109/minio-api/">
                     </div>
                     <div class="form-group">
-                        <label>Access Key</label>
-                        <input type="text" class="form-control" id="accessKey" placeholder="MinIO Access Key">
+                        <label>Access Key <span class="key-badge" id="akBadge" style="display:none">已配置</span></label>
+                        <div class="mask-wrap">
+                            <input type="password" class="form-control" id="accessKey" placeholder="MinIO Access Key" readonly>
+                            <button type="button" class="mask-edit-btn" data-target="accessKey" onclick="enableKeyEdit(this)">✎ 编辑</button>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label>Secret Key</label>
-                        <input type="password" class="form-control" id="secretKey" placeholder="MinIO Secret Key">
+                        <label>Secret Key <span class="key-badge" id="skBadge" style="display:none">已配置</span></label>
+                        <div class="mask-wrap">
+                            <input type="password" class="form-control" id="secretKey" placeholder="MinIO Secret Key" readonly>
+                            <button type="button" class="mask-edit-btn" data-target="secretKey" onclick="enableKeyEdit(this)">✎ 编辑</button>
+                        </div>
                     </div>
                     <div class="btn-group">
                         <button class="btn btn-primary" onclick="saveConfig()">保存并连接</button>
@@ -1301,16 +1340,44 @@
         };
     }
 
+    function enableKeyEdit(btn) {
+        var targetId = btn.getAttribute('data-target');
+        var input = document.getElementById(targetId);
+        input.removeAttribute('readonly');
+        input.value = '';
+        input.focus();
+        btn.style.display = 'none';
+    }
+
     function saveConfig() {
         var config = getConfigFromForm();
-        if (!config.server_address || !config.access_key || !config.secret_key) {
-            showAlert('error', '请填写完整的连接信息');
+        if (!config.server_address) {
+            showAlert('error', '请填写服务器地址');
             return;
         }
+        // access_key / secret_key 空值时后端自动保留旧值
         apiRequest('POST', '/config', config, function(err, resp) {
             if (err) { showAlert('error', '连接失败: ' + err); updateConnectionStatus(false); }
-            else { showAlert('success', resp.message || '连接成功！'); updateConnectionStatus(true); refreshBuckets(); }
+            else {
+                showAlert('success', resp.message || '连接成功！');
+                updateConnectionStatus(true);
+                refreshBuckets();
+                // 保存成功后恢复 mask 状态
+                maskKeyField('accessKey', 'akBadge');
+                maskKeyField('secretKey', 'skBadge');
+            }
         });
+    }
+
+    function maskKeyField(inputId, badgeId) {
+        var input = document.getElementById(inputId);
+        var badge = document.getElementById(badgeId);
+        input.setAttribute('readonly', 'readonly');
+        input.value = '';
+        input.placeholder = '******** (已配置, 点击✎编辑)';
+        badge.style.display = '';
+        var editBtn = document.querySelector('.mask-edit-btn[data-target="' + inputId + '"]');
+        if (editBtn) editBtn.style.display = '';
     }
 
     function testConnection() { saveConfig(); }
@@ -1318,13 +1385,15 @@
     // =================== Load Config ===================
     function loadConfig() {
         apiRequest('GET', '/config', null, function(err, resp) {
-            if (!err && resp.server_address) {
-                document.getElementById('serverAddress').value = resp.server_address || '';
-                document.getElementById('accessKey').value = resp.access_key || '';
-                document.getElementById('secretKey').value = resp.secret_key || '';
-                updateConnectionStatus(resp.connected || false);
-                if (resp.connected) refreshBuckets();
-            }
+            if (err) return;
+            document.getElementById('serverAddress').value = resp.server_address || '';
+            // key 字段前端不展示明文, 仅显示 "已配置" 状态 + mask
+            if (resp.access_key_set) maskKeyField('accessKey', 'akBadge');
+            else document.getElementById('akBadge').style.display = 'none';
+            if (resp.secret_key_set) maskKeyField('secretKey', 'skBadge');
+            else document.getElementById('skBadge').style.display = 'none';
+            updateConnectionStatus(resp.connected || false);
+            if (resp.connected) refreshBuckets();
         });
     }
 
