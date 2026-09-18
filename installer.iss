@@ -53,8 +53,8 @@ InfoBeforeFile=
 InfoAfterFile=
 
 [Languages]
-; 使用 Inno Setup 内置的简体中文语言文件
-Name: "chinesesimplified"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+; 使用随仓库提交的简体中文语言文件 (Inno Setup 6.5+)
+Name: "chinesesimplified"; MessagesFile: "ChineseSimplified.isl"
 
 [Messages]
 ; 覆盖部分关键提示为更贴合产品的中文描述
