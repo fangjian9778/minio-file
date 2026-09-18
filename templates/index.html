@@ -531,8 +531,23 @@
             margin-bottom: 14px;
             font-size: .85rem;
             color: #3a5f8a;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .path-bar b { color: var(--primary); font-weight: 600; }
+        .path-bar b { color: var(--primary); font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .path-copy-btn {
+            flex-shrink: 0;
+            font-size: .75rem;
+            padding: 3px 10px;
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all .2s;
+        }
+        .path-copy-btn:hover { background: var(--primary); color: #fff; }
         /* =================== Upload Zone =================== */
         .upload-zone {
             border: 2px dashed var(--border);
@@ -666,7 +681,8 @@
             color: var(--text);
         }
         .file-table tr:hover td { background: var(--sidebar-hover); }
-        .file-table .actions { white-space: nowrap; }
+        .file-table .actions { white-space: nowrap; text-align: right; }
+        .file-table .actions .btn-group { justify-content: flex-end; }
         .file-name {
             display: flex;
             align-items: center;
@@ -1014,7 +1030,7 @@
                 <div class="card">
                     <div class="card-title"><span class="icon">&#8679;</span> 文件上传</div>
                     <!-- Path Bar -->
-                    <div class="path-bar" id="uploadPathBar">当前路径: <b>未选择桶</b></div>
+                    <div class="path-bar" id="uploadPathBar" data-full-path=""><span>当前路径:</span><b>未选择桶</b><button class="path-copy-btn" onclick="copyCurrentPath('uploadPathBar')" title="复制完整路径">📋 复制</button></div>
                     <!-- Bucket Selection (与下载面板样式同步) -->
                     <div class="form-row">
                         <div class="form-col form-col-bucket">
@@ -1065,7 +1081,7 @@
                 <div class="card">
                     <div class="card-title"><span class="icon">&#8681;</span> 文件下载</div>
                     <!-- Path Bar -->
-                    <div class="path-bar" id="downloadPathBar">当前路径: <b>未选择桶</b></div>
+                    <div class="path-bar" id="downloadPathBar" data-full-path=""><span>当前路径:</span><b>未选择桶</b><button class="path-copy-btn" onclick="copyCurrentPath('downloadPathBar')" title="复制完整路径">📋 复制</button></div>
                     <!-- Bucket Selection + Search (横向对齐) -->
                     <div class="form-row">
                         <div class="form-col form-col-bucket">
@@ -1364,8 +1380,10 @@
     function updateUploadPathBar() {
         var bucket = document.getElementById('uploadBucket').value;
         var path = uploadCurrentPrefix || '';
-        var full = bucket ? (bucket + (path ? '/' + path : '')) : '未选择桶';
-        document.getElementById('uploadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
+        var full = bucket ? (bucket + (path ? '/' + path : '')) : '';
+        var bar = document.getElementById('uploadPathBar');
+        bar.setAttribute('data-full-path', full);
+        bar.querySelector('b').textContent = full || '未选择桶';
     }
 
     function openUploadFolderBrowser() {
@@ -1602,8 +1620,10 @@
     function updateDownloadPathBar() {
         var bucket = document.getElementById('downloadBucket').value;
         var path = downloadCurrentPrefix || '';
-        var full = bucket ? (bucket + (path ? '/' + path : '')) : '未选择桶';
-        document.getElementById('downloadPathBar').innerHTML = '当前路径: <b>' + escapeHtml(full) + '</b>';
+        var full = bucket ? (bucket + (path ? '/' + path : '')) : '';
+        var bar = document.getElementById('downloadPathBar');
+        bar.setAttribute('data-full-path', full);
+        bar.querySelector('b').textContent = full || '未选择桶';
     }
 
     function openDownloadFolderBrowser() {
@@ -1759,8 +1779,9 @@
                 '<td>' + formatSize(f.size) + '</td>' +
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
-                '<button class="btn btn-sm btn-outline copy-btn" data-idx="' + idx + '">&#128203; 复制</button>' +
-                '<button class="btn btn-sm btn-danger delete-btn" data-idx="' + idx + '">&#128465;</button>' +
+                '<button class="btn btn-sm btn-outline copy-btn" data-idx="' + idx + '">📋 复制</button>' +
+                '<button class="btn btn-sm btn-primary download-btn" data-idx="' + idx + '">⬇ 下载</button>' +
+                '<button class="btn btn-sm btn-danger delete-btn" data-idx="' + idx + '">🗑</button>' +
                 '</div></td></tr>';
         });
         html += '</tbody></table></div>';
@@ -1785,6 +1806,12 @@
                 deleteFileByIdx(idx, bucket);
             });
         });
+        document.querySelectorAll('.download-btn').forEach(function(el) {
+            el.addEventListener('click', function() {
+                var idx = parseInt(this.getAttribute('data-idx'), 10);
+                downloadFileByIdx(idx, bucket);
+            });
+        });
         updateDownloadSelectAllState();
     }
 
@@ -1796,6 +1823,13 @@
         else delete selectedDownloadFiles[name];
         updateDownloadSelectedCount();
         updateDownloadSelectAllState();
+    }
+
+    function copyCurrentPath(barId) {
+        var bar = document.getElementById(barId);
+        var path = bar.getAttribute('data-full-path') || '';
+        if (!path) { showAlert('error', '还未选择桶或路径'); return; }
+        copyFileName(path);
     }
 
     function copyFileNameByIdx(idx) {
