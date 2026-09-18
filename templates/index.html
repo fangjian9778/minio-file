@@ -18,13 +18,35 @@
         .main::-webkit-scrollbar, .panel::-webkit-scrollbar, .card::-webkit-scrollbar {
             display: none;
         }
+        /* ===== 默认: 白昼模式 (白蓝) ===== */
         :root {
+            --primary: #1976d2;
+            --primary-dark: #1565c0;
+            --primary-glow: rgba(25, 118, 210, 0.18);
+            --neon-purple: #7c4dff;
+            --success: #43a047;
+            --danger: #e53935;
+            --warning: #f9a825;
+            --bg: #f5f7fb;
+            --card-bg: #ffffff;
+            --card-border: #e0e6ef;
+            --sidebar-bg: #ffffff;
+            --sidebar-active: #e8f0fe;
+            --sidebar-hover: #f2f6fd;
+            --text: #1f2937;
+            --text-secondary: #5a6b84;
+            --text-light: #94a3b8;
+            --border: #dbe3ee;
+            --radius: 6px;
+            --shadow: 0 1px 3px rgba(25, 118, 210, 0.08);
+            --shadow-glow: 0 2px 8px rgba(25, 118, 210, 0.12);
+        }
+        /* ===== 深色模式 ===== */
+        html[data-theme="dark"] {
             --primary: #00e5ff;
             --primary-dark: #0097a7;
             --primary-glow: rgba(0, 229, 255, 0.25);
             --neon-purple: #b388ff;
-            --neon-pink: #ff6ec7;
-            --neon-green: #39ff14;
             --success: #00e676;
             --danger: #ff5252;
             --warning: #ffd740;
@@ -38,7 +60,6 @@
             --text-secondary: #8899b4;
             --text-light: #5a6a84;
             --border: rgba(0, 229, 255, 0.2);
-            --radius: 6px;
             --shadow: 0 0 15px rgba(0, 229, 255, 0.08);
             --shadow-glow: 0 0 20px rgba(0, 229, 255, 0.2);
         }
@@ -82,8 +103,8 @@
             position: absolute;
             top: 0; right: 0;
             width: 1px; height: 100%;
-            background: linear-gradient(180deg, transparent, var(--primary), transparent);
-            opacity: .5;
+            background: var(--card-border);
+            opacity: 1;
         }
         .sidebar.expanded {
             width: 200px;
@@ -178,7 +199,7 @@
         .nav-item.active {
             background: var(--sidebar-active);
             color: var(--primary);
-            box-shadow: inset 0 0 10px var(--primary-glow);
+            box-shadow: inset 2px 0 0 var(--primary);
         }
         .nav-item.active::before { height: 60%; }
         .nav-item .nav-label {
@@ -200,12 +221,36 @@
             display: flex;
             justify-content: center;
         }
-        .sidebar.expanded .sidebar-footer { justify-content: flex-start; }
+        .sidebar.expanded .sidebar-footer { justify-content: space-between; align-items: center; }
+        .sidebar-footer { gap: 6px; }
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--card-border);
+            border-radius: 50%;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: all .2s;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .theme-toggle:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: 0 0 8px var(--primary-glow);
+        }
+        .sidebar:not(.expanded) .sidebar-footer { justify-content: center; gap: 0; }
+        .sidebar:not(.expanded) .status-badge { display: none; }
+        .sidebar:not(.expanded) .theme-toggle { margin: 0 auto; }
         .status-badge {
             font-size: .7rem;
             padding: 3px 10px;
             border-radius: 12px;
-            background: rgba(0,229,255,.08);
+            background: var(--sidebar-hover);
             border: 1px solid var(--card-border);
             display: inline-flex;
             align-items: center;
@@ -220,7 +265,7 @@
             width: 6px; height: 6px;
             border-radius: 50%;
             background: var(--danger);
-            box-shadow: 0 0 6px currentColor;
+            box-shadow: 0 0 4px currentColor;
             animation: pulse-dot 2s infinite;
         }
         .status-dot.connected { background: var(--success); }
@@ -234,11 +279,11 @@
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            background: linear-gradient(180deg, rgba(10,14,26,.6) 0%, rgba(10,14,26,.9) 100%);
+            background: var(--bg);
         }
         .main-header {
-            background: rgba(16, 22, 40, 0.6);
-            backdrop-filter: blur(8px);
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--card-border);
             padding: 12px 24px;
             border-bottom: 1px solid var(--card-border);
             flex-shrink: 0;
@@ -340,17 +385,17 @@
             border-radius: var(--radius);
             font-size: .85rem;
             outline: none;
-            background: rgba(0, 20, 40, 0.6);
+            background: var(--card-bg);
             color: var(--text);
             transition: all .2s;
         }
         .form-control:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 2px var(--primary-glow), 0 0 10px var(--primary-glow);
-            background: rgba(0, 20, 40, 0.8);
+            box-shadow: 0 0 0 2px var(--primary-glow);
+            background: var(--card-bg);
         }
         .form-control::placeholder { color: var(--text-light); }
-        select.form-control option { background: var(--bg); color: var(--text); }
+        select.form-control option { background: var(--card-bg); color: var(--text); }
         /* =================== Buttons (Sci-Fi) =================== */
         .btn {
             display: inline-flex;
@@ -458,7 +503,7 @@
         }
         /* =================== Path Bar (Sci-Fi) =================== */
         .path-bar {
-            background: rgba(0, 229, 255, 0.06);
+            background: var(--sidebar-hover);
             border: 1px solid var(--card-border);
             border-radius: var(--radius);
             padding: 8px 14px;
@@ -476,18 +521,18 @@
             text-align: center;
             cursor: pointer;
             transition: all .25s;
-            background: rgba(0, 229, 255, 0.03);
+            background: var(--bg);
         }
         .upload-zone:hover {
             border-color: var(--primary);
-            background: rgba(0, 229, 255, 0.06);
-            box-shadow: 0 0 20px var(--primary-glow);
+            background: var(--sidebar-hover);
+            box-shadow: var(--shadow-glow);
         }
         .upload-zone .upload-icon { font-size: 2rem; margin-bottom: 10px; filter: drop-shadow(0 0 8px var(--primary-glow)); }
         .upload-zone p { color: var(--text-secondary); font-size: .85rem; }
         /* =================== Progress (Sci-Fi) =================== */
         .progress-bar-container {
-            background: rgba(0, 229, 255, 0.08);
+            background: var(--border);
             border-radius: 10px;
             height: 18px;
             overflow: hidden;
@@ -524,11 +569,11 @@
             overflow-x: hidden;
             border: 1px solid var(--card-border);
             border-radius: var(--radius);
-            background: rgba(0, 10, 20, 0.4);
+            background: var(--card-bg);
         }
         .file-table-area::-webkit-scrollbar { width: 8px; }
-        .file-table-area::-webkit-scrollbar-track { background: rgba(0,0,0,.2); }
-        .file-table-area::-webkit-scrollbar-thumb { background: var(--primary-dark); border-radius: 4px; }
+        .file-table-area::-webkit-scrollbar-track { background: transparent; }
+        .file-table-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
         .file-table-area::-webkit-scrollbar-thumb:hover { background: var(--primary); }
         .file-table {
             width: 100%;
@@ -540,7 +585,7 @@
             top: 0;
             text-align: left;
             padding: 8px 10px;
-            background: rgba(0, 20, 40, 0.95);
+            background: var(--bg);
             font-weight: 600;
             font-size: .78rem;
             color: var(--primary);
@@ -550,10 +595,10 @@
         }
         .file-table td {
             padding: 7px 10px;
-            border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+            border-bottom: 1px solid var(--border);
             color: var(--text);
         }
-        .file-table tr:hover td { background: rgba(0, 229, 255, 0.06); }
+        .file-table tr:hover td { background: var(--sidebar-hover); }
         .file-table .actions { white-space: nowrap; }
         .file-name {
             display: flex;
@@ -700,14 +745,14 @@
             align-content: start;
         }
         .folder-grid::-webkit-scrollbar { width: 6px; }
-        .folder-grid::-webkit-scrollbar-track { background: rgba(0,0,0,.2); }
-        .folder-grid::-webkit-scrollbar-thumb { background: var(--primary-dark); border-radius: 3px; }
+        .folder-grid::-webkit-scrollbar-track { background: transparent; }
+        .folder-grid::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
         .folder-grid::-webkit-scrollbar-thumb:hover { background: var(--primary); }
         .folder-card {
             display: flex;
             align-items: center;
             gap: 4px;
-            background: rgba(0, 229, 255, 0.05);
+            background: var(--sidebar-hover);
             border: 1px solid var(--card-border);
             color: var(--text);
             padding: 5px 8px;
@@ -721,7 +766,7 @@
             min-width: 0;
             transition: all .2s;
         }
-        .folder-card:hover { border-color: var(--primary); background: rgba(0,229,255,.12); box-shadow: 0 0 8px var(--primary-glow); }
+        .folder-card:hover { border-color: var(--primary); background: var(--sidebar-active); box-shadow: var(--shadow-glow); }
         .folder-card .folder-icon { font-size: 1.1rem; flex-shrink: 0; }
         /* =================== Breadcrumb =================== */
         .breadcrumb {
@@ -817,6 +862,9 @@
                 <span class="status-dot" id="statusDot"></span>
                 <span class="status-label" id="statusText">未连接</span>
             </div>
+            <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换主题">
+                <span class="theme-icon" id="themeIcon">&#9788;</span>
+            </button>
         </div>
     </div>
 
@@ -1939,6 +1987,27 @@
         }
         init();
         draw();
+    })();
+
+    // =================== Theme Toggle ===================
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        try { localStorage.setItem('minio-theme', theme); } catch(e) {}
+        var icon = document.getElementById('themeIcon');
+        if (icon) icon.innerHTML = theme === 'dark' ? '&#127769;' : '&#9728;';
+        var toggle = document.getElementById('themeToggle');
+        if (toggle) toggle.title = theme === 'dark' ? '切换到白昼模式' : '切换到深色模式';
+        var canvas = document.getElementById('particleCanvas');
+        if (canvas) canvas.style.opacity = theme === 'dark' ? '1' : '0.25';
+    }
+    function toggleTheme() {
+        var cur = document.documentElement.getAttribute('data-theme') || 'light';
+        applyTheme(cur === 'dark' ? 'light' : 'dark');
+    }
+    (function() {
+        var saved = 'light';
+        try { saved = localStorage.getItem('minio-theme') || 'light'; } catch(e) {}
+        applyTheme(saved);
     })();
 
     // =================== Init ===================
