@@ -544,6 +544,10 @@ def list_files():
         if not bucket_name:
             return jsonify({"error": "Bucket name is required."}), 400
 
+        # 规范化 prefix: 确保以 / 结尾或为空, 否则 recursive=False 下 MinIO 把它当文件名匹配
+        if prefix:
+            prefix = prefix.rstrip("/") + "/"
+
         # 只列当前层 (recursive=False), 避免大桶深层目录递归列举全部子孙对象导致超时
         objects = client.list_objects(bucket_name, prefix=prefix or "", recursive=False)
         all_files = []
