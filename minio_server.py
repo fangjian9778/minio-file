@@ -815,7 +815,6 @@ def delete_many_files():
 def search_files():
     bucket_name = request.args.get("bucket", "")
     pattern = request.args.get("pattern", "").strip()
-    search_type = request.args.get("type", "fuzzy")
     prefix = request.args.get("prefix", "")
     limit = int(request.args.get("limit", "500"))
     if limit > 5000:
@@ -830,20 +829,27 @@ def search_files():
         if not client:
             return jsonify({"error": "MinIO not configured."}), 400
 
+        # 预编译正则 (如果合法), 非法则 regex_match 始终为 False
+        compiled_re = None
+        if len(pattern) <= 500:  # 防止超长正则 DoS
+            try:
+                compiled_re = re.compile(pattern, re.IGNORECASE)
+            except re.error:
+                compiled_re = None
+
         def matches(name):
-            """匹配文件名(仅比较 basename, 忽略路径前缀)."""
+            """同时尝试正则和包含匹配, 任一命中即可."""
             basename = os.path.basename(name)
-            if search_type == "regex":
-                if len(pattern) > 500:
-                    return False  # 防止超长正则导致 DoS
-                try:
-                    return bool(re.search(pattern, basename, re.IGNORECASE))
-                except re.error:
-                    return False
-            elif search_type == "wildcard":
-                return fnmatch.fnmatch(basename.lower(), pattern.lower())
-            else:
-                return pattern.lower() in basename.lower()
+            lower = basename.lower()
+            pat_lower = pattern.lower()
+            # 1. 包含匹配 (最快)
+            if pat_lower in lower:
+                return True
+            # 2. 正则匹配 (只有合法正则才执行)
+            if compiled_re is not None:
+                if compiled_re.search(basename):
+                    return True
+            return False
 
         # 如果提供了 prefix, 只搜索该目录下; 否则搜索整个桶
         search_prefix = prefix if prefix else ""

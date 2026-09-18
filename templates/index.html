@@ -982,14 +982,10 @@
                         <div style="flex:2">
                             <label>搜索文件</label>
                             <div class="search-bar">
-                                <input type="text" class="form-control" id="downloadSearchInput" placeholder="输入文件名搜索...">
-                                <div class="search-type-group">
-                                    <button class="search-type-btn active" data-type="contains" onclick="setDownloadSearchType('contains')">包含</button>
-                                    <button class="search-type-btn" data-type="regex" onclick="setDownloadSearchType('regex')">正则</button>
-                                </div>
+                                <input type="text" class="form-control" id="downloadSearchInput" placeholder="输入文件名 (包含/正则自动识别)...">
                             </div>
                         </div>
-                        <button class="btn btn-primary btn-height-match" style="margin-bottom:0" onclick="loadDownloadFiles()">&#128269; 查询</button>
+                        <button class="btn btn-primary" style="margin-bottom:0;height:36px" onclick="loadDownloadFiles()">&#128269; 查询</button>
                     </div>
                     <!-- Folder Browser -->
                     <div class="folder-browser hidden" id="downloadFolderBrowser">
