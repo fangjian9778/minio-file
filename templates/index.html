@@ -1846,7 +1846,7 @@
                 '<td>' + escapeHtml(f.last_modified || '') + '</td>' +
                 '<td class="actions"><div class="btn-group">' +
                 '<button class="btn btn-sm btn-primary download-btn" data-idx="' + idx + '">⬇ 下载</button>' +
-                '<button class="btn btn-sm btn-danger delete-btn" data-idx="' + idx + '">🗑</button>' +
+                '<button class="btn btn-sm btn-danger delete-btn" data-idx="' + idx + '">🗑 删除</button>' +
                 '</div></td></tr>';
         });
         html += '</tbody></table></div>';
@@ -1973,137 +1973,120 @@
 
     function downloadFile(bucket, objectName) {
         var basename = fileBasename(objectName);
-        var controller = new AbortController();
-        currentDownloadXhr = controller;
-        currentTransferType = 'download';
-        showCancelBtn();
-        showBottomProgress('正在下载: ' + basename, 0);
-        var url = '/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName);
-        fetch(url, { signal: controller.signal })
-            .then(function(resp) {
+        if (hasInAppApi()) {
+            // 桌面版: 弹出原生 SAVE 对话框选择本地路径
+            showBottomProgress('正在下载: ' + basename + ' (请在弹出的保存对话框中选择位置)', 0);
+            var apiCall = window.pywebview.api.download(bucket, objectName, "single_" + Date.now());
+            // pywebview 4.x 返回 Promise, 3.x 可能返回 dict 直接
+            Promise.resolve(apiCall).then(function(result) {
+                currentDownloadXhr = null;
+                currentTransferType = null;
+                if (result && result.status === "ok") {
+                    showBottomProgress('下载完成: ' + basename, 100);
+                    setTimeout(function() { hideBottomProgress(); }, 1500);
+                } else if (result && result.status === "cancelled") {
+                    hideBottomProgress();
+                    showToast('info', '已取消下载');
+                } else {
+                    hideBottomProgress();
+                    showToast('error', '下载失败: ' + (result && result.message ? result.message : '未知错误'));
+                }
+            }).catch(function(err) {
+                currentDownloadXhr = null;
+                currentTransferType = null;
+                hideBottomProgress();
+                showToast('error', '下载失败: ' + (err && err.message ? err.message : String(err)));
+            });
+        } else {
+            // 浏览器/开发模式 fallback
+            showBottomProgress('正在下载 (浏览器模式): ' + basename, 0);
+            var url = '/minio/api/download?bucket=' + encodeURIComponent(bucket) + '&object_name=' + encodeURIComponent(objectName);
+            fetch(url).then(function(resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                var total = resp.headers.get('Content-Length');
                 var reader = resp.body.getReader();
                 var chunks = [];
-                var loaded = 0;
                 function read() {
                     reader.read().then(function(r) {
                         if (r.done) {
                             var blob = new Blob(chunks);
-                            var cd = resp.headers.get('Content-Disposition') || 'attachment; filename="' + basename + '"';
-                            var m = cd.match(/filename="?([^";]+)"?/);
-                            var fname = m ? m[1] : basename;
                             var a = document.createElement('a');
                             a.href = URL.createObjectURL(blob);
-                            a.download = fname;
+                            a.download = basename;
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
-                            showBottomProgress('下载完成: ' + basename, 100);
-                            setTimeout(function() { hideBottomProgress(); }, 1500);
-                            currentDownloadXhr = null;
-                            currentTransferType = null;
+                            hideBottomProgress();
+                            showToast('success', '下载完成');
                             return;
                         }
                         chunks.push(r.value);
-                        loaded += r.value.length;
-                        var pct = total ? Math.round((loaded / parseInt(total)) * 100) : Math.round(loaded / 1024 / 1024);
-                        showBottomProgress('下载中: ' + basename, total ? pct + '%' : (loaded / 1024 / 1024).toFixed(1) + ' MB');
                         read();
-                    }).catch(function(err) {
-                        currentDownloadXhr = null;
-                        currentTransferType = null;
-                        if (err.name === 'AbortError') {
-                            showToast('error', '下载已取消');
-                            hideBottomProgress();
-                        } else {
-                            showToast('error', '下载失败: ' + err.message);
-                            hideBottomProgress();
-                        }
                     });
                 }
                 read();
-            })
-            .catch(function(err) {
-                currentDownloadXhr = null;
-                currentTransferType = null;
-                if (err.name === 'AbortError') {
-                    showToast('error', '下载已取消');
-                    hideBottomProgress();
-                } else {
-                    showToast('error', '下载失败: ' + err.message);
-                    hideBottomProgress();
-                }
+            }).catch(function(err) {
+                hideBottomProgress();
+                showToast('error', '下载失败: ' + err.message);
             });
+        }
     }
 
     function batchDownloadSelected() {
         var bucket = document.getElementById('downloadBucket').value;
         var names = Object.keys(selectedDownloadFiles);
         if (names.length === 0) { showAlert('error', '请先选择要下载的文件'); return; }
-        var controller = new AbortController();
-        currentDownloadXhr = controller;
-        currentTransferType = 'download';
-        showCancelBtn();
-        showBottomProgress('正在打包下载 ' + names.length + ' 个文件...', 0);
-        var filesParam = encodeURIComponent(names.join(','));
-        var url = '/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + filesParam;
-        fetch(url, { signal: controller.signal })
-            .then(function(resp) {
+        if (hasInAppApi()) {
+            // 桌面版: 弹出原生 FOLDER 对话框选择目标目录
+            showBottomProgress('批量下载中 ' + names.length + ' 个文件 (请在弹出的对话框中选择保存目录)...', 0);
+            var apiCall = window.pywebview.api.batch_download(bucket, names);
+            Promise.resolve(apiCall).then(function(result) {
+                if (result && result.status === "ok") {
+                    showBottomProgress('批量下载完成: ' + result.count + ' 个文件', 100);
+                    setTimeout(function() { hideBottomProgress(); }, 2000);
+                } else if (result && result.status === "cancelled") {
+                    hideBottomProgress();
+                    showToast('info', '已取消批量下载');
+                } else {
+                    hideBottomProgress();
+                    showToast('error', '批量下载失败: ' + (result && result.message ? result.message : '未知错误'));
+                }
+            }).catch(function(err) {
+                hideBottomProgress();
+                showToast('error', '批量下载失败: ' + (err && err.message ? err.message : String(err)));
+            });
+        } else {
+            // 浏览器 fallback: 打包成 zip 下载
+            showBottomProgress('正在打包下载 ' + names.length + ' 个文件...', 0);
+            var filesParam = encodeURIComponent(names.join(','));
+            var url = '/minio/api/batch-download?bucket=' + encodeURIComponent(bucket) + '&files=' + filesParam;
+            fetch(url).then(function(resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
-                var total = resp.headers.get('Content-Length');
                 var reader = resp.body.getReader();
                 var chunks = [];
-                var loaded = 0;
                 function read() {
                     reader.read().then(function(r) {
                         if (r.done) {
                             var blob = new Blob(chunks);
-                            var cd = resp.headers.get('Content-Disposition') || 'attachment; filename="download.zip"';
-                            var m = cd.match(/filename="?([^";]+)"?/);
-                            var fname = m ? m[1] : 'download-' + Date.now() + '.zip';
                             var a = document.createElement('a');
                             a.href = URL.createObjectURL(blob);
-                            a.download = fname;
+                            a.download = 'minio-batch-' + Date.now() + '.zip';
                             document.body.appendChild(a);
                             a.click();
                             document.body.removeChild(a);
-                            showBottomProgress('下载完成！', 100);
-                            setTimeout(function() { hideBottomProgress(); }, 1500);
-                            currentDownloadXhr = null;
-                            currentTransferType = null;
+                            hideBottomProgress();
+                            showToast('success', '下载完成');
                             return;
                         }
                         chunks.push(r.value);
-                        loaded += r.value.length;
-                        var pct = total ? Math.round((loaded / parseInt(total)) * 100) : Math.round(loaded / 1024 / 1024);
-                        showBottomProgress('下载中 ' + names.length + ' 个文件...', total ? pct + '%' : (loaded / 1024 / 1024).toFixed(1) + ' MB');
                         read();
-                    }).catch(function(err) {
-                        currentDownloadXhr = null;
-                        currentTransferType = null;
-                        if (err.name === 'AbortError') {
-                            showToast('error', '下载已取消');
-                            hideBottomProgress();
-                        } else {
-                            showToast('error', '下载失败: ' + err.message);
-                            hideBottomProgress();
-                        }
                     });
                 }
                 read();
-            })
-            .catch(function(err) {
-                currentDownloadXhr = null;
-                currentTransferType = null;
-                if (err.name === 'AbortError') {
-                    showToast('error', '下载已取消');
-                    hideBottomProgress();
-                } else {
-                    showToast('error', '下载失败: ' + err.message);
-                    hideBottomProgress();
-                }
+            }).catch(function(err) {
+                hideBottomProgress();
+                showToast('error', '批量下载失败: ' + err.message);
             });
+        }
     }
 
     function deleteFile(bucket, objectName) {

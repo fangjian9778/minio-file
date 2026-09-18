@@ -61,6 +61,27 @@ def _s3_error_message(e):
         return str(e)
 
 
+def _format_local_time(dt):
+    """把 MinIO 返回的 UTC datetime 转成本地时间字符串 (Python 2/3 兼容)."""
+    if dt is None:
+        return ""
+    try:
+        # v7 API: dt 是带 tzinfo 的 datetime
+        try:
+            local = dt.astimezone()  # Python 3 local timezone
+        except Exception:
+            try:
+                local = dt.replace(tzinfo=None)
+            except Exception:
+                local = dt
+        return local.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        try:
+            return str(dt)
+        except Exception:
+            return ""
+
+
 # =================== Credential Encryption (at-rest) ===================
 # Access Key / Secret Key 以加密形式持久化到 .minio_config.json, 不在磁盘明文保存.
 # 用 PBKDF2 派生密钥 + 自实现 CTR 流密码 (仅 hashlib, 兼容 Python 2.7, 无外部依赖).
@@ -580,15 +601,18 @@ def list_files():
             etag = ""
             if IS_MINIO_V7_API:
                 if obj.last_modified:
-                    last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S")
+                    last_mod = _format_local_time(obj.last_modified)
                 size = obj.size or 0
                 etag = obj.etag or ""
             else:
                 size = obj.size or 0
                 try:
-                    last_mod = str(obj.last_modified) if obj.last_modified else ""
+                    last_mod = _format_local_time(obj.last_modified)
                 except Exception:
-                    last_mod = ""
+                    try:
+                        last_mod = str(obj.last_modified) if obj.last_modified else ""
+                    except Exception:
+                        last_mod = ""
                 etag = obj.etag or ""
 
             if skip > 0:
@@ -889,7 +913,7 @@ def search_files():
                 break
             if matches(obj.object_name):
                 if IS_MINIO_V7_API:
-                    last_mod = obj.last_modified.strftime("%Y-%m-%d %H:%M:%S") if obj.last_modified else ""
+                    last_mod = _format_local_time(obj.last_modified)
                     files.append({"name": obj.object_name, "size": obj.size, "last_modified": last_mod, "etag": obj.etag})
                 else:
                     try:
