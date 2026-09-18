@@ -1341,8 +1341,11 @@
         localStorage.setItem('last_upload_bucket', bucket);
         uploadCurrentPrefix = localStorage.getItem('upload_prefix') || '';
         updateUploadPathBar();
-        document.getElementById('uploadFolderBrowser').classList.add('hidden');
-        // uploadBrowseBtn removed - folders auto load
+        if (bucket) {
+            openUploadFolderBrowser();
+        } else {
+            document.getElementById('uploadFolderBrowser').classList.add('hidden');
+        }
     }
 
     function updateUploadPathBar() {
@@ -1571,13 +1574,16 @@
         downloadCurrentSearch = '';
         currentDownloadPage = 1;
         updateDownloadPathBar();
-        document.getElementById('downloadFolderBrowser').classList.add('hidden');
         document.getElementById('downloadPagination').style.display = 'none';
         document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶后点击查询查看文件列表</p></div>';
         document.getElementById('downloadSelectAllBar').classList.add('hidden');
-        // downloadBrowseBtn removed - folders auto load
         allDownloadFiles = [];
         selectedDownloadFiles = {};
+        if (bucket) {
+            openDownloadFolderBrowser();
+        } else {
+            document.getElementById('downloadFolderBrowser').classList.add('hidden');
+        }
     }
 
     function updateDownloadPathBar() {
