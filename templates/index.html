@@ -138,29 +138,33 @@
         .sidebar.expanded .sidebar-logo .logo-text { opacity: 1; transition-delay: .1s; }
         .sidebar-toggle {
             position: absolute;
-            top: 10px;
-            right: -12px;
-            width: 24px;
-            height: 24px;
-            background: var(--bg);
-            border: 1px solid var(--primary);
-            color: var(--primary);
-            border-radius: 50%;
+            top: 50%;
+            right: 0;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 40px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-right: none;
+            color: var(--text-secondary);
+            border-radius: 6px 0 0 6px;
             cursor: pointer;
-            font-size: .7rem;
+            font-size: .6rem;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 10;
-            transition: all .2s;
+            transition: all .25s ease;
             padding: 0;
+            line-height: 1;
         }
         .sidebar-toggle:hover {
-            background: var(--primary);
-            color: var(--bg);
-            box-shadow: 0 0 12px var(--primary-glow);
+            color: var(--primary);
+            border-color: var(--primary);
+            background: var(--sidebar-hover);
         }
-        .sidebar.expanded .sidebar-toggle { transform: rotate(180deg); }
+        .sidebar.expanded .sidebar-toggle { }  /* 保持位置, 不额外旋转 */
+        .sidebar:not(.expanded) .sidebar-toggle { color: var(--text-secondary); }
         .sidebar-nav {
             flex: 1;
             display: flex;
@@ -169,11 +173,12 @@
             padding: 0 6px;
         }
         .nav-item {
-            padding: 10px 8px;
+            padding: 10px 12px;
             cursor: pointer;
             transition: all .25s;
             display: flex;
             align-items: center;
+            justify-content: flex-start;
             gap: 10px;
             font-size: .8rem;
             color: var(--text-secondary);
@@ -181,6 +186,10 @@
             white-space: nowrap;
             position: relative;
             overflow: hidden;
+        }
+        .sidebar:not(.expanded) .nav-item {
+            justify-content: center;
+            padding: 10px 0;
         }
         .nav-item::before {
             content: '';
@@ -212,7 +221,7 @@
             width: 20px;
             text-align: center;
             flex-shrink: 0;
-            filter: drop-shadow(0 0 3px currentColor);
+            filter: none;
         }
         .sidebar-footer {
             padding: 10px 6px;
@@ -848,7 +857,7 @@
     <canvas id="particleCanvas"></canvas>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="展开">&#9654;</button>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="收缩">&#10094;</button>
         <div class="sidebar-logo">
             <div class="logo-icon">&#9881;</div>
             <span class="logo-text">MINIO 云存储</span>
