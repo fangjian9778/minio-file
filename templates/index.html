@@ -19,21 +19,28 @@
             display: none;
         }
         :root {
-            --primary: #4285f4;
-            --primary-dark: #3367d6;
-            --success: #34a853;
-            --danger: #ea4335;
-            --warning: #fbbc04;
-            --bg: #f0f2f5;
-            --card-bg: #ffffff;
-            --sidebar-bg: #1e293b;
-            --sidebar-active: #334155;
-            --text: #202124;
-            --text-secondary: #5f6368;
-            --text-light: #94a3b8;
-            --border: #dadce0;
-            --radius: 8px;
-            --shadow: 0 1px 3px rgba(0,0,0,.1);
+            --primary: #00e5ff;
+            --primary-dark: #0097a7;
+            --primary-glow: rgba(0, 229, 255, 0.25);
+            --neon-purple: #b388ff;
+            --neon-pink: #ff6ec7;
+            --neon-green: #39ff14;
+            --success: #00e676;
+            --danger: #ff5252;
+            --warning: #ffd740;
+            --bg: #0a0e1a;
+            --card-bg: rgba(16, 22, 40, 0.85);
+            --card-border: rgba(0, 229, 255, 0.15);
+            --sidebar-bg: rgba(8, 12, 24, 0.95);
+            --sidebar-active: rgba(0, 229, 255, 0.15);
+            --sidebar-hover: rgba(0, 229, 255, 0.08);
+            --text: #e0f7ff;
+            --text-secondary: #8899b4;
+            --text-light: #5a6a84;
+            --border: rgba(0, 229, 255, 0.2);
+            --radius: 6px;
+            --shadow: 0 0 15px rgba(0, 229, 255, 0.08);
+            --shadow-glow: 0 0 20px rgba(0, 229, 255, 0.2);
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -42,135 +49,206 @@
             display: flex;
             height: 100vh;
             width: 100vw;
+            position: relative;
+            overflow: hidden;
         }
-        /* =================== Sidebar =================== */
+        /* Particle Canvas */
+        #particleCanvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+        body > * { position: relative; z-index: 1; }
+        /* =================== Sidebar (Sci-Fi) =================== */
         .sidebar {
-            width: 200px;
-            min-width: 200px;
+            width: 56px;
+            min-width: 56px;
             background: var(--sidebar-bg);
+            backdrop-filter: blur(12px);
+            border-right: 1px solid var(--card-border);
             color: white;
             display: flex;
             flex-direction: column;
-            padding: 20px 0;
-            transition: all .3s ease;
+            padding: 14px 0;
+            transition: width .35s cubic-bezier(.4,0,.2,1), min-width .35s ease;
             overflow: hidden;
             flex-shrink: 0;
+            position: relative;
         }
-        .sidebar.collapsed {
-            width: 56px;
-            min-width: 56px;
+        .sidebar::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 1px; height: 100%;
+            background: linear-gradient(180deg, transparent, var(--primary), transparent);
+            opacity: .5;
         }
-        .sidebar.collapsed .sidebar-logo span,
-        .sidebar.collapsed .nav-item span:not(.nav-icon),
-        .sidebar.collapsed .sidebar-footer span {
-            display: none;
+        .sidebar.expanded {
+            width: 200px;
+            min-width: 200px;
         }
-        .sidebar.collapsed .sidebar-logo {
+        .sidebar-logo {
+            padding: 0 14px 14px;
+            font-size: .85rem;
+            font-weight: 700;
+            border-bottom: 1px solid var(--card-border);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            letter-spacing: 1px;
+        }
+        .sidebar-logo .logo-icon {
+            width: 28px; height: 28px;
+            background: linear-gradient(135deg, var(--primary), var(--neon-purple));
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
             justify-content: center;
-            padding: 0 10px 20px;
+            font-size: .9rem;
+            flex-shrink: 0;
+            box-shadow: 0 0 10px var(--primary-glow);
         }
-        .sidebar.collapsed .nav-item {
-            justify-content: center;
-            padding: 12px 10px;
-        }
-        .sidebar.collapsed .sidebar-footer {
-            justify-content: center;
-            padding: 12px 10px;
-        }
+        .sidebar-logo .logo-text { opacity: 0; transition: opacity .25s ease 0s; }
+        .sidebar.expanded .sidebar-logo .logo-text { opacity: 1; transition-delay: .1s; }
         .sidebar-toggle {
             position: absolute;
-            top: 12px;
+            top: 10px;
             right: -12px;
             width: 24px;
             height: 24px;
-            background: var(--primary);
-            color: white;
-            border: none;
+            background: var(--bg);
+            border: 1px solid var(--primary);
+            color: var(--primary);
             border-radius: 50%;
             cursor: pointer;
-            font-size: .8rem;
+            font-size: .7rem;
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 10;
+            transition: all .2s;
+            padding: 0;
         }
         .sidebar-toggle:hover {
-            background: var(--primary-dark);
+            background: var(--primary);
+            color: var(--bg);
+            box-shadow: 0 0 12px var(--primary-glow);
         }
-        .sidebar {
-            position: relative;
-        }
-        .sidebar-logo {
-            padding: 0 20px 20px;
-            font-size: 1.1rem;
-            font-weight: 700;
-            border-bottom: 1px solid #334155;
-            margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
+        .sidebar.expanded .sidebar-toggle { transform: rotate(180deg); }
         .sidebar-nav {
             flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
+            padding: 0 6px;
         }
         .nav-item {
-            padding: 12px 20px;
+            padding: 10px 8px;
             cursor: pointer;
-            transition: all .2s;
+            transition: all .25s;
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: .9rem;
-            color: var(--text-light);
+            font-size: .8rem;
+            color: var(--text-secondary);
+            border-radius: 6px;
+            white-space: nowrap;
+            position: relative;
+            overflow: hidden;
+        }
+        .nav-item::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 50%;
+            height: 0; width: 2px;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: height .25s;
+            transform: translateY(-50%);
         }
         .nav-item:hover {
-            background: var(--sidebar-active);
-            color: white;
+            background: var(--sidebar-hover);
+            color: var(--primary);
         }
         .nav-item.active {
-            background: var(--primary);
-            color: white;
+            background: var(--sidebar-active);
+            color: var(--primary);
+            box-shadow: inset 0 0 10px var(--primary-glow);
         }
-        .nav-icon { font-size: 1.1rem; width: 24px; text-align: center; }
+        .nav-item.active::before { height: 60%; }
+        .nav-item .nav-label {
+            opacity: 0;
+            transition: opacity .25s ease .05s;
+        }
+        .sidebar.expanded .nav-item .nav-label { opacity: 1; }
+        .nav-icon {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+            flex-shrink: 0;
+            filter: drop-shadow(0 0 3px currentColor);
+        }
         .sidebar-footer {
-            padding: 12px 20px;
-            border-top: 1px solid #334155;
+            padding: 10px 6px;
+            border-top: 1px solid var(--card-border);
             margin-top: auto;
+            display: flex;
+            justify-content: center;
         }
+        .sidebar.expanded .sidebar-footer { justify-content: flex-start; }
         .status-badge {
-            font-size: .8rem;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: rgba(255,255,255,.1);
+            font-size: .7rem;
+            padding: 3px 10px;
+            border-radius: 12px;
+            background: rgba(0,229,255,.08);
+            border: 1px solid var(--card-border);
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
         }
+        .status-badge .status-label { opacity: 0; transition: opacity .25s ease .05s; }
+        .sidebar.expanded .status-badge .status-label { opacity: 1; }
         .status-dot {
-            width: 8px; height: 8px;
+            width: 6px; height: 6px;
             border-radius: 50%;
             background: var(--danger);
+            box-shadow: 0 0 6px currentColor;
+            animation: pulse-dot 2s infinite;
         }
         .status-dot.connected { background: var(--success); }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
         /* =================== Main =================== */
         .main {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            background: linear-gradient(180deg, rgba(10,14,26,.6) 0%, rgba(10,14,26,.9) 100%);
         }
         .main-header {
-            background: white;
-            padding: 16px 24px;
-            border-bottom: 1px solid var(--border);
+            background: rgba(16, 22, 40, 0.6);
+            backdrop-filter: blur(8px);
+            padding: 12px 24px;
+            border-bottom: 1px solid var(--card-border);
             flex-shrink: 0;
         }
         .main-header h2 {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
+            color: var(--primary);
+            letter-spacing: 1px;
+            text-shadow: 0 0 10px var(--primary-glow);
         }
         .main-content {
             flex: 1;
@@ -201,72 +279,137 @@
         .panel.active > .card > .pagination {
             flex-shrink: 0;
         }
-        /* =================== Card =================== */
+        /* =================== Card (Sci-Fi) =================== */
         .card {
             background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--card-border);
             border-radius: var(--radius);
             box-shadow: var(--shadow);
-            padding: 20px;
-            margin-bottom: 16px;
+            padding: 18px;
+            margin-bottom: 14px;
+            position: relative;
+        }
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 20px; height: 20px;
+            border-top: 2px solid var(--primary);
+            border-left: 2px solid var(--primary);
+            border-radius: var(--radius) 0 0 0;
+            pointer-events: none;
+        }
+        .card::after {
+            content: '';
+            position: absolute;
+            bottom: 0; right: 0;
+            width: 20px; height: 20px;
+            border-bottom: 2px solid var(--primary);
+            border-right: 2px solid var(--primary);
+            border-radius: 0 0 var(--radius) 0;
+            pointer-events: none;
         }
         .card-title {
-            font-size: 1rem;
+            font-size: .95rem;
             font-weight: 600;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             padding-bottom: 10px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--card-border);
             display: flex;
             align-items: center;
             gap: 8px;
+            color: var(--primary);
+            letter-spacing: .5px;
         }
-        /* =================== Forms =================== */
+        /* =================== Forms (Sci-Fi) =================== */
         .form-group { margin-bottom: 14px; }
         .form-group label {
             display: block;
-            font-size: .85rem;
+            font-size: .8rem;
             font-weight: 500;
             color: var(--text-secondary);
             margin-bottom: 6px;
+            letter-spacing: .5px;
+            text-transform: uppercase;
         }
         .form-control {
             width: 100%;
             padding: 8px 12px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--card-border);
             border-radius: var(--radius);
-            font-size: .9rem;
+            font-size: .85rem;
             outline: none;
-            background: white;
+            background: rgba(0, 20, 40, 0.6);
+            color: var(--text);
+            transition: all .2s;
         }
         .form-control:focus {
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(66,133,244,.15);
+            box-shadow: 0 0 0 2px var(--primary-glow), 0 0 10px var(--primary-glow);
+            background: rgba(0, 20, 40, 0.8);
         }
-        /* =================== Buttons =================== */
+        .form-control::placeholder { color: var(--text-light); }
+        select.form-control option { background: var(--bg); color: var(--text); }
+        /* =================== Buttons (Sci-Fi) =================== */
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 6px;
             padding: 8px 16px;
-            border: none;
+            border: 1px solid transparent;
             border-radius: var(--radius);
-            font-size: .85rem;
+            font-size: .82rem;
             font-weight: 500;
             cursor: pointer;
             transition: all .2s;
+            letter-spacing: .5px;
+            position: relative;
+            overflow: hidden;
         }
-        .btn:disabled { opacity: .5; cursor: not-allowed; }
-        .btn-primary { background: var(--primary); color: white; }
-        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
-        .btn-success { background: var(--success); color: white; }
-        .btn-danger { background: var(--danger); color: white; }
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,.1), transparent);
+            transition: left .5s;
+        }
+        .btn:hover:not(:disabled)::before { left: 100%; }
+        .btn:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: #001a1f;
+            border-color: var(--primary);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        .btn-primary:hover:not(:disabled) {
+            background: linear-gradient(135deg, var(--primary), var(--neon-purple));
+            box-shadow: 0 0 18px var(--primary-glow);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #00c853, var(--success));
+            color: #002010;
+            box-shadow: 0 0 10px rgba(0, 230, 118, .3);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #d50000, var(--danger));
+            color: #fff;
+            box-shadow: 0 0 10px rgba(255, 82, 82, .3);
+        }
         .btn-outline {
             background: transparent;
-            border: 1px solid var(--border);
-            color: var(--text);
+            border: 1px solid var(--primary);
+            color: var(--primary);
         }
-        .btn-sm { padding: 5px 10px; font-size: .8rem; }
+        .btn-outline:hover:not(:disabled) {
+            background: var(--primary-glow);
+        }
+        .btn-sm { padding: 5px 10px; font-size: .78rem; }
         .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        /* 查询按钮高度统一 */
+        .btn-height-match { height: 36px; }
         /* =================== Path Bar =================== */
         .path-bar {
             background: #f0f6ff;
@@ -313,38 +456,104 @@
             color: white;
             min-width: 35px;
         }
-        /* =================== File Table =================== */
+        /* =================== Path Bar (Sci-Fi) =================== */
+        .path-bar {
+            background: rgba(0, 229, 255, 0.06);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius);
+            padding: 8px 14px;
+            margin-bottom: 14px;
+            font-size: .82rem;
+            color: var(--text-secondary);
+            font-family: "Consolas", "Monaco", monospace;
+        }
+        .path-bar b { color: var(--primary); font-weight: 600; text-shadow: 0 0 8px var(--primary-glow); }
+        /* =================== Upload Zone (Sci-Fi) =================== */
+        .upload-zone {
+            border: 2px dashed var(--card-border);
+            border-radius: var(--radius);
+            padding: 30px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .25s;
+            background: rgba(0, 229, 255, 0.03);
+        }
+        .upload-zone:hover {
+            border-color: var(--primary);
+            background: rgba(0, 229, 255, 0.06);
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+        .upload-zone .upload-icon { font-size: 2rem; margin-bottom: 10px; filter: drop-shadow(0 0 8px var(--primary-glow)); }
+        .upload-zone p { color: var(--text-secondary); font-size: .85rem; }
+        /* =================== Progress (Sci-Fi) =================== */
+        .progress-bar-container {
+            background: rgba(0, 229, 255, 0.08);
+            border-radius: 10px;
+            height: 18px;
+            overflow: hidden;
+            margin: 8px 0;
+            position: relative;
+            border: 1px solid var(--card-border);
+        }
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--neon-purple), var(--primary));
+            background-size: 200% 100%;
+            animation: progress-shine 2s linear infinite;
+            border-radius: 10px;
+            transition: width .3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .7rem;
+            font-weight: 600;
+            color: #001a1f;
+            min-width: 35px;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+        @keyframes progress-shine {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        /* =================== File Table (Sci-Fi) =================== */
         .file-table-area {
             flex: 1;
             min-height: 120px;
             max-height: none;
             overflow-y: auto;
             overflow-x: hidden;
-            border: 1px solid var(--border);
+            border: 1px solid var(--card-border);
             border-radius: var(--radius);
+            background: rgba(0, 10, 20, 0.4);
         }
+        .file-table-area::-webkit-scrollbar { width: 8px; }
+        .file-table-area::-webkit-scrollbar-track { background: rgba(0,0,0,.2); }
+        .file-table-area::-webkit-scrollbar-thumb { background: var(--primary-dark); border-radius: 4px; }
+        .file-table-area::-webkit-scrollbar-thumb:hover { background: var(--primary); }
         .file-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: .85rem;
+            font-size: .82rem;
         }
         .file-table th {
             position: sticky;
             top: 0;
             text-align: left;
             padding: 8px 10px;
-            background: var(--bg);
+            background: rgba(0, 20, 40, 0.95);
             font-weight: 600;
-            font-size: .8rem;
-            color: var(--text-secondary);
-            border-bottom: 2px solid var(--border);
+            font-size: .78rem;
+            color: var(--primary);
+            border-bottom: 1px solid var(--card-border);
             z-index: 1;
+            letter-spacing: .5px;
         }
         .file-table td {
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border);
+            padding: 7px 10px;
+            border-bottom: 1px solid rgba(0, 229, 255, 0.06);
+            color: var(--text);
         }
-        .file-table tr:hover td { background: #f8f9fa; }
+        .file-table tr:hover td { background: rgba(0, 229, 255, 0.06); }
         .file-table .actions { white-space: nowrap; }
         .file-name {
             display: flex;
@@ -444,7 +653,7 @@
         .bottom-progress {
             position: fixed;
             bottom: 0;
-            left: 200px;
+            left: 56px;
             right: 0;
             background: white;
             border-top: 1px solid var(--border);
@@ -469,7 +678,7 @@
         .empty-state {
             text-align: center;
             padding: 40px 20px;
-            color: var(--text-secondary);
+            color: var(--text-light);
         }
         .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 10px; }
         /* =================== Folder Browser =================== */
@@ -491,6 +700,10 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            background: rgba(0, 229, 255, 0.05);
+            border: 1px solid var(--card-border);
+            color: var(--text);
+            transition: all .2s;
             padding: 8px 10px;
             border: 1px solid var(--border);
             border-radius: var(--radius);
@@ -571,11 +784,13 @@
     </style>
 </head>
 <body>
+    <canvas id="particleCanvas"></canvas>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
-        <button class="sidebar-toggle" onclick="toggleSidebar()">&#9664;</button>
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()" title="展开">&#9654;</button>
         <div class="sidebar-logo">
-            <span>&#128230;</span> MinIO 文件服务
+            <div class="logo-icon">&#9881;</div>
+            <span class="logo-text">MINIO 云存储</span>
         </div>
         <nav class="sidebar-nav">
             <div class="nav-item active" data-panel="config">
@@ -591,7 +806,7 @@
         <div class="sidebar-footer">
             <div class="status-badge">
                 <span class="status-dot" id="statusDot"></span>
-                <span id="statusText">未连接</span>
+                <span class="status-label" id="statusText">未连接</span>
             </div>
         </div>
     </div>
@@ -655,7 +870,7 @@
                         <div class="breadcrumb" id="uploadBreadcrumb"></div>
                         <div class="folder-grid" id="uploadFolderGrid"></div>
                     </div>
-                    <button class="btn btn-sm btn-outline" id="uploadBrowseBtn" style="margin-top:8px;display:none" onclick="openUploadFolderBrowser()">浏览文件夹</button>
+                    <!-- 浏览文件夹按钮已移除, 选择桶后自动显示 -->
                     <!-- Drop Zone -->
                     <div class="upload-zone" id="uploadZone" onclick="document.getElementById('multiFileInput').click()">
                         <div class="upload-icon">&#128196;</div>
@@ -710,14 +925,14 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="btn btn-primary" style="margin-bottom:0;height:38px" onclick="loadDownloadFiles()">查询</button>
+                        <button class="btn btn-primary btn-height-match" style="margin-bottom:0" onclick="loadDownloadFiles()">&#128269; 查询</button>
                     </div>
                     <!-- Folder Browser -->
                     <div class="folder-browser hidden" id="downloadFolderBrowser">
                         <div class="breadcrumb" id="downloadBreadcrumb"></div>
                         <div class="folder-grid" id="downloadFolderGrid"></div>
                     </div>
-                    <button class="btn btn-sm btn-outline" id="downloadBrowseBtn" style="margin-top:8px;display:none" onclick="openDownloadFolderBrowser()">浏览文件夹</button>
+                    <!-- 浏览文件夹按钮已移除, 选择桶后自动显示 -->
                     <!-- Select All Bar -->
                     <div class="select-all-bar hidden" id="downloadSelectAllBar">
                         <label class="form-check">
@@ -726,7 +941,7 @@
                         <span class="selected-count" id="downloadSelectedCount">已选择 0 个文件</span>
                         <div class="btn-group">
                             <button class="btn btn-sm btn-danger" onclick="batchDeleteSelected()">&#128465; 删除所选</button>
-                            <button class="btn btn-sm btn-primary" onclick="batchDownloadSelected()">&#128230; 批量下载</button>
+                            <button class="btn btn-sm btn-primary btn-height-match" onclick="batchDownloadSelected()">&#128230; 批量下载</button>
                         </div>
                     </div>
                     <!-- File List -->
@@ -810,14 +1025,13 @@
     // =================== Sidebar Toggle ===================
     function toggleSidebar() {
         var sidebar = document.getElementById('sidebar');
-        var toggle = sidebar.querySelector('.sidebar-toggle');
-        sidebar.classList.toggle('collapsed');
-        var isCollapsed = sidebar.classList.contains('collapsed');
-        toggle.innerHTML = isCollapsed ? '&#9654;' : '&#9664;';
-        // Update bottom progress bar left position
+        sidebar.classList.toggle('expanded');
+        var isExpanded = sidebar.classList.contains('expanded');
+        var toggle = document.getElementById('sidebarToggle');
+        if (toggle) toggle.title = isExpanded ? '收缩' : '展开';
         var progress = document.getElementById('bottomProgress');
         if (progress) {
-            progress.style.left = isCollapsed ? '56px' : '200px';
+            progress.style.left = isExpanded ? '200px' : '56px';
         }
     }
 
@@ -980,7 +1194,7 @@
         uploadCurrentPrefix = localStorage.getItem('upload_prefix') || '';
         updateUploadPathBar();
         document.getElementById('uploadFolderBrowser').classList.add('hidden');
-        document.getElementById('uploadBrowseBtn').style.display = bucket ? 'inline-flex' : 'none';
+        // uploadBrowseBtn removed - folders auto load
     }
 
     function updateUploadPathBar() {
@@ -1213,7 +1427,7 @@
         document.getElementById('downloadPagination').style.display = 'none';
         document.getElementById('downloadFileListArea').innerHTML = '<div class="empty-state"><div class="empty-icon">&#128194;</div><p>选择桶后点击查询查看文件列表</p></div>';
         document.getElementById('downloadSelectAllBar').classList.add('hidden');
-        document.getElementById('downloadBrowseBtn').style.display = bucket ? 'inline-flex' : 'none';
+        // downloadBrowseBtn removed - folders auto load
         allDownloadFiles = [];
         selectedDownloadFiles = {};
     }
@@ -1655,7 +1869,77 @@
         });
     }
 
+    // =================== Particle Background ===================
+    (function() {
+        var canvas = document.getElementById('particleCanvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var particles = [];
+        var PARTICLE_COUNT = 60;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        function Particle() {
+            this.x = Math.random() * canvas.width;
+            this.y = Math.random() * canvas.height;
+            this.vx = (Math.random() - 0.5) * 0.3;
+            this.vy = (Math.random() - 0.5) * 0.3;
+            this.r = Math.random() * 1.5 + 0.5;
+            this.alpha = Math.random() * 0.5 + 0.2;
+            this.hue = Math.random() > 0.5 ? 180 : 280; // cyan or purple
+        }
+
+        function init() {
+            particles = [];
+            for (var i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (var i = 0; i < particles.length; i++) {
+                var p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'hsla(' + p.hue + ', 100%, 70%, ' + p.alpha + ')';
+                ctx.fill();
+                // Connect nearby particles
+                for (var j = i + 1; j < particles.length; j++) {
+                    var q = particles[j];
+                    var dx = p.x - q.x, dy = p.y - q.y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(p.x, p.y);
+                        ctx.lineTo(q.x, q.y);
+                        ctx.strokeStyle = 'hsla(180, 100%, 70%, ' + (0.08 * (1 - dist / 120)) + ')';
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(draw);
+        }
+        init();
+        draw();
+    })();
+
     // =================== Init ===================
+    // Default sidebar collapsed
+    (function() {
+        var sidebar = document.getElementById('sidebar');
+        if (sidebar) sidebar.classList.remove('expanded');
+        var progress = document.getElementById('bottomProgress');
+        if (progress) progress.style.left = '56px';
+    })();
     loadConfig();
     </script>
 </body>
