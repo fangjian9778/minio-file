@@ -923,7 +923,7 @@ def search_files():
                         pass
                 count += 1
 
-        return jsonify({"files": files, "bucket": bucket_name, "pattern": pattern, "type": search_type, "count": len(files)})
+        return jsonify({"files": files, "bucket": bucket_name, "pattern": pattern, "count": len(files)})
     except S3Error as e:
         return jsonify({"error": "S3 Error: " + _s3_error_message(e)}), 500
     except Exception as e:
