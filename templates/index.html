@@ -632,6 +632,19 @@
             background: var(--sidebar-hover);
             box-shadow: var(--shadow-glow);
         }
+        .upload-zone.drag-over {
+            border-color: var(--primary);
+            background: rgba(33, 150, 243, 0.12);
+            box-shadow: 0 0 18px rgba(33, 150, 243, 0.35);
+            transform: scale(1.01);
+        }
+        .upload-zone.drag-over .upload-icon {
+            animation: pulse-glow 0.8s ease-in-out infinite alternate;
+        }
+        @keyframes pulse-glow {
+            from { filter: drop-shadow(0 0 6px var(--primary-glow)); }
+            to   { filter: drop-shadow(0 0 18px var(--primary-glow)); }
+        }
         .upload-zone .upload-icon { font-size: 2rem; margin-bottom: 10px; filter: drop-shadow(0 0 8px var(--primary-glow)); }
         .upload-zone p { color: var(--text-secondary); font-size: .85rem; }
         /* =================== Progress (Sci-Fi) =================== */
@@ -1505,6 +1518,61 @@
     }
 
     // =================== Multi-File Upload ===================
+
+    // 全局阻止浏览器对拖拽文件的默认行为 (避免打开新页面)
+    ['dragenter', 'dragover', 'drop'].forEach(function(evtName) {
+        document.addEventListener(evtName, function(e) {
+            if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, false);
+    });
+
+    function bindDropZone() {
+        var zone = document.getElementById('uploadZone');
+        if (!zone) return;
+        var leaveTimer = null;
+
+        function hasFiles(e) {
+            return e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1;
+        }
+
+        zone.addEventListener('dragenter', function(e) {
+            if (!hasFiles(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('drag-over');
+            if (leaveTimer) { clearTimeout(leaveTimer); leaveTimer = null; }
+        });
+
+        zone.addEventListener('dragover', function(e) {
+            if (!hasFiles(e)) return;
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.add('drag-over');
+        });
+
+        zone.addEventListener('dragleave', function(e) {
+            // 子元素之间切换也会触发, 用 timer 去抖
+            leaveTimer = setTimeout(function() { zone.classList.remove('drag-over'); }, 80);
+        });
+
+        zone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            zone.classList.remove('drag-over');
+            if (!hasFiles(e)) return;
+            var dropped = Array.from(e.dataTransfer.files);
+            if (!dropped.length) return;
+            var bucket = document.getElementById('uploadBucket').value;
+            if (!bucket) { showAlert('error', '请先选择目标桶'); return; }
+            uploadFiles = uploadFiles.concat(dropped);
+            renderUploadFileList();
+            showToast('success', '已添加 ' + dropped.length + ' 个文件到上传列表');
+        });
+    }
+
     function handleMultiFileSelect(input) {
         var files = Array.from(input.files);
         if (!files.length) return;
@@ -2209,6 +2277,7 @@
         var progress = document.getElementById('bottomProgress');
         if (progress) progress.style.left = '56px';
     })();
+    bindDropZone();
     loadConfig();
     </script>
 </body>
