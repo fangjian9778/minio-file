@@ -478,6 +478,65 @@
             height: 36px;
             margin-top: 20px;  /* label高度(22px) + margin-bottom(6px) - btn自身padding补偿 */
         }
+        /* 带单位的数字输入: input 后紧贴 "MB" 等单位文字 */
+        .input-with-unit {
+            display: flex;
+            align-items: stretch;
+            height: 36px;
+        }
+        .input-with-unit .form-control {
+            flex: 1;
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+            border-right: none;
+        }
+        .input-with-unit .unit-label {
+            padding: 0 14px;
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            background: var(--sidebar-hover);
+            border: 1px solid var(--border);
+            border-left: none;
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            border-top-right-radius: 6px;
+            border-bottom-right-radius: 6px;
+            user-select: none;
+        }
+        .form-hint {
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            opacity: 0.8;
+        }
+        /* 面板底部信息栏 */
+        .panel-footer {
+            margin-top: 14px;
+            padding: 10px 14px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: var(--sidebar-hover);
+            border: 1px dashed var(--card-border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+        }
+        .panel-footer .footer-label {
+            font-weight: 500;
+            opacity: 0.85;
+        }
+        .panel-footer .footer-value {
+            font-weight: 700;
+            color: var(--primary);
+            letter-spacing: 0.3px;
+        }
+        .panel-footer .footer-value.no-limit {
+            color: #27ae60;
+        }
         .form-control {
             width: 100%;
             padding: 8px 12px;
@@ -1057,6 +1116,18 @@
                             <button type="button" class="mask-edit-btn" data-target="secretKey" onclick="enableKeyEdit(this)">✎ 编辑</button>
                         </div>
                     </div>
+                    <div class="form-row" style="align-items:flex-end">
+                        <div class="form-col">
+                            <label>上传大小限制</label>
+                            <div class="input-with-unit">
+                                <input type="number" class="form-control" id="uploadSizeLimit"
+                                       min="0" max="10240" step="1" value="512"
+                                       title="0 表示不限制, 范围 1~10240 MB">
+                                <span class="unit-label">MB</span>
+                            </div>
+                            <div class="form-hint">0 = 不限制, 最大 10240 MB (10GB)</div>
+                        </div>
+                    </div>
                     <div class="btn-group">
                         <button class="btn btn-primary" onclick="saveConfig()">保存并连接</button>
                         <button class="btn btn-outline" onclick="testConnection()">测试连接</button>
@@ -1115,6 +1186,11 @@
                         <div class="progress-bar-container">
                             <div class="progress-bar" id="uploadProgressBar" style="width:0%"></div>
                         </div>
+                    </div>
+                    <!-- Upload limit footer -->
+                    <div class="panel-footer" id="panelUploadFooter">
+                        <span class="footer-label">当前上传限制:</span>
+                        <span class="footer-value" id="uploadLimitDisplay">加载中...</span>
                     </div>
                 </div>
             </div>
@@ -1346,10 +1422,17 @@
 
     // =================== Config ===================
     function getConfigFromForm() {
+        var ulInput = document.getElementById('uploadSizeLimit');
+        var ulVal = 512;
+        if (ulInput && ulInput.value.trim() !== '') {
+            var n = parseInt(ulInput.value, 10);
+            if (!isNaN(n) && n >= 0) ulVal = n;
+        }
         return {
             server_address: document.getElementById('serverAddress').value.trim(),
             access_key: document.getElementById('accessKey').value.trim(),
-            secret_key: document.getElementById('secretKey').value.trim()
+            secret_key: document.getElementById('secretKey').value.trim(),
+            upload_size_limit: ulVal
         };
     }
 
@@ -1395,6 +1478,22 @@
 
     function testConnection() { saveConfig(); }
 
+    function updateUploadLimitDisplay(limitMB) {
+        var el = document.getElementById('uploadLimitDisplay');
+        if (!el) return;
+        var n = parseInt(limitMB, 10);
+        if (isNaN(n) || n <= 0) {
+            el.textContent = '不限制';
+            el.classList.add('no-limit');
+        } else if (n >= 1024) {
+            el.textContent = (n / 1024).toFixed(1) + ' GB (' + n + ' MB)';
+            el.classList.remove('no-limit');
+        } else {
+            el.textContent = n + ' MB';
+            el.classList.remove('no-limit');
+        }
+    }
+
     // =================== Load Config ===================
     function loadConfig() {
         apiRequest('GET', '/config', null, function(err, resp) {
@@ -1405,6 +1504,11 @@
             else document.getElementById('akBadge').style.display = 'none';
             if (resp.secret_key_set) maskKeyField('secretKey', 'skBadge');
             else document.getElementById('skBadge').style.display = 'none';
+            // 回填上传大小限制
+            var ul = document.getElementById('uploadSizeLimit');
+            if (ul) ul.value = (resp.upload_size_limit != null) ? resp.upload_size_limit : 512;
+            // 更新上传页底部显示
+            updateUploadLimitDisplay(resp.upload_size_limit);
             updateConnectionStatus(resp.connected || false);
             if (resp.connected) refreshBuckets();
         });

@@ -138,12 +138,16 @@ def decrypt_secret(token):
 
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024  # 512 MB 上传限制
+# MAX_CONTENT_LENGTH 将在 load_config() 之后根据 upload_size_limit 动态设置
 CORS(app)
 bp = Blueprint("main", __name__, url_prefix="/minio")
 
 
 # =================== Config Storage ===================
+DEFAULT_UPLOAD_SIZE_LIMIT_MB = 512   # 默认 512MB
+MIN_UPLOAD_SIZE_LIMIT_MB = 1
+MAX_UPLOAD_SIZE_LIMIT_MB = 10240     # 上限 10GB
+
 minio_config = {
     "endpoint": "",
     "access_key": "",
@@ -153,6 +157,7 @@ minio_config = {
     "port": "9000",
     "path_prefix": "",
     "server_address": "",  # 保存用户输入的完整地址(含端口和路径前缀)
+    "upload_size_limit": DEFAULT_UPLOAD_SIZE_LIMIT_MB,  # 单位 MB, 0 表示不限制
 }
 
 # Per-bucket path configuration
@@ -270,10 +275,30 @@ def get_minio_client():
 
 # =================== Persistence ===================
 
+def _apply_upload_limit():
+    """把 minio_config['upload_size_limit'](MB) 应用到 Flask MAX_CONTENT_LENGTH.
+    limit <= 0 表示不限制."""
+    limit_mb = minio_config.get("upload_size_limit", DEFAULT_UPLOAD_SIZE_LIMIT_MB)
+    try:
+        limit_mb = int(limit_mb)
+    except (TypeError, ValueError):
+        limit_mb = DEFAULT_UPLOAD_SIZE_LIMIT_MB
+    if limit_mb <= 0:
+        app.config["MAX_CONTENT_LENGTH"] = None
+    else:
+        if limit_mb < MIN_UPLOAD_SIZE_LIMIT_MB:
+            limit_mb = MIN_UPLOAD_SIZE_LIMIT_MB
+        if limit_mb > MAX_UPLOAD_SIZE_LIMIT_MB:
+            limit_mb = MAX_UPLOAD_SIZE_LIMIT_MB
+        minio_config["upload_size_limit"] = limit_mb
+        app.config["MAX_CONTENT_LENGTH"] = limit_mb * 1024 * 1024
+
+
 def save_config(config):
     global minio_config, minio_client
     minio_config.update(config)
     minio_client = None
+    _apply_upload_limit()
     _persist_config()
 
 
@@ -314,6 +339,8 @@ def load_config():
                     saved.pop(_k, None)
         except Exception:
             pass
+    # 动态应用上传大小限制 (兼容旧配置没有 upload_size_limit 字段)
+    _apply_upload_limit()
 
 
 # =================== Endpoint Parsing ===================
@@ -389,6 +416,7 @@ def get_config():
         "access_key_set": bool(minio_config.get("access_key")),
         "secret_key_set": bool(minio_config.get("secret_key")),
         "secure": minio_config["secure"],
+        "upload_size_limit": minio_config.get("upload_size_limit", DEFAULT_UPLOAD_SIZE_LIMIT_MB),
         "connected": False,
     }
     try:
@@ -433,6 +461,16 @@ def set_config():
     if not new_ak or not new_sk:
         return jsonify({"error": "Access key and secret key are required."}), 400
 
+    # 上传大小限制: 前端可能不传 (老版本), 缺省保留旧值
+    try:
+        ul = int(data.get("upload_size_limit", minio_config.get("upload_size_limit", DEFAULT_UPLOAD_SIZE_LIMIT_MB)))
+    except (TypeError, ValueError):
+        ul = minio_config.get("upload_size_limit", DEFAULT_UPLOAD_SIZE_LIMIT_MB)
+    if ul > MAX_UPLOAD_SIZE_LIMIT_MB:
+        ul = MAX_UPLOAD_SIZE_LIMIT_MB
+    elif ul < 0:
+        ul = 0   # 0 = 不限制
+
     config = {
         "server_address": server_address or effective,
         "endpoint": host + ":" + port,
@@ -442,6 +480,7 @@ def set_config():
         "host": host,
         "port": port,
         "path_prefix": path_prefix,
+        "upload_size_limit": ul,
     }
 
     save_config(config)
