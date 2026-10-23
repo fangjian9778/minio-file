@@ -89,7 +89,7 @@
             background: var(--sidebar-bg);
             backdrop-filter: blur(12px);
             border-right: 1px solid var(--card-border);
-            color: white;
+            color: var(--text);
             display: flex;
             flex-direction: column;
             padding: 14px 0;
@@ -333,7 +333,8 @@
         }
         .main-content {
             flex: 1;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             padding: 20px 24px;
             min-height: 0;
             min-width: 0;
@@ -343,21 +344,26 @@
         .panel.active {
             display: flex;
             flex-direction: column;
-            height: 100%;
             min-height: 0;
+            min-width: 0;
         }
-        .panel.active > .card {
+        /* Config panel: auto height, scrollable parent */
+        .panel#panel-config.active { height: auto; }
+        .panel#panel-config.active > .card { flex: none; overflow: visible; }
+        /* Upload/Download panels: fill parent, file table scrolls inside */
+        .panel#panel-upload.active, .panel#panel-download.active { height: 100%; }
+        .panel#panel-upload.active > .card, .panel#panel-download.active > .card {
             flex: 1;
             display: flex;
             flex-direction: column;
             min-height: 0;
             overflow: hidden;
         }
-        .panel.active > .card > .file-table-area {
+        .panel#panel-download.active > .card > .file-table-area {
             flex: 1;
             min-height: 120px;
         }
-        .panel.active > .card > .pagination {
+        .panel#panel-download.active > .card > .pagination {
             flex-shrink: 0;
         }
         /* =================== Card (Sci-Fi) =================== */
@@ -642,28 +648,6 @@
         .upload-zone:hover { border-color: var(--primary); background: rgba(66,133,244,.04); }
         .upload-zone .upload-icon { font-size: 2rem; margin-bottom: 10px; }
         .upload-zone p { color: var(--text-secondary); font-size: .85rem; }
-        /* =================== Progress =================== */
-        .progress-bar-container {
-            background: #e8eaed;
-            border-radius: 10px;
-            height: 20px;
-            overflow: hidden;
-            margin: 10px 0;
-            position: relative;
-        }
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, var(--primary), #6c63ff);
-            border-radius: 10px;
-            transition: width .3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: .7rem;
-            font-weight: 600;
-            color: white;
-            min-width: 35px;
-        }
         /* =================== Path Bar (Sci-Fi) =================== */
         .path-bar {
             background: var(--sidebar-hover);
@@ -728,7 +712,7 @@
             justify-content: center;
             font-size: .7rem;
             font-weight: 600;
-            color: #001a1f;
+            color: #fff;
             min-width: 35px;
             box-shadow: 0 0 10px var(--primary-glow);
         }
@@ -773,6 +757,7 @@
             padding: 7px 10px;
             border-bottom: 1px solid var(--border);
             color: var(--text);
+            vertical-align: middle;
         }
         .file-table tr:hover td { background: var(--sidebar-hover); }
         .file-table .actions { white-space: nowrap; text-align: right; }
@@ -1787,11 +1772,16 @@
             currentTransferType = 'upload';
             showCancelBtn();
             xhr.open('POST', '/minio/api/upload', true);
+            var serverConfirmed = false;
             xhr.upload.addEventListener('progress', function(e) {
-                if (e.lengthComputable) {
+                if (e.lengthComputable && !serverConfirmed) {
                     var filePct = Math.round((e.loaded / e.total) * 100);
-                    var totalPct = Math.round(((currentFile + filePct / 100) / uploadFiles.length) * 100);
-                    showBottomProgress('上传中: ' + file.name + ' (' + (currentFile + 1) + '/' + uploadFiles.length + ') ' + filePct + '%', totalPct);
+                    // 客户端传输完成但服务端未响应时, 卡在上限 99%, 显示 "服务端处理中..."
+                    var effectivePct = Math.min(filePct, 99);
+                    var totalPct = Math.round(((currentFile + effectivePct / 100) / uploadFiles.length) * 100);
+                    var statusText = '上传中: ' + file.name + ' (' + (currentFile + 1) + '/' + uploadFiles.length + ') ' + filePct + '%';
+                    if (filePct >= 100) statusText += ' — 服务端处理中...';
+                    showBottomProgress(statusText, totalPct);
                 }
             });
             xhr.onreadystatechange = function() {
@@ -1805,6 +1795,7 @@
                     try {
                         var resp = JSON.parse(xhr.responseText);
                         if (xhr.status === 200) {
+                            serverConfirmed = true;
                             currentFile++;
                             uploadNext();
                         } else {
