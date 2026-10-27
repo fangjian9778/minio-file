@@ -1009,6 +1009,122 @@
             font-size: 1.1rem;
             flex-shrink: 0;
         }
+        /* =================== AI Chat =================== */
+        .ai-msg {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            font-size: .85rem;
+            line-height: 1.55;
+        }
+        .ai-msg-avatar {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            font-size: .9rem;
+        }
+        .ai-msg-user .ai-msg-avatar {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+            color: #fff;
+        }
+        .ai-msg-ai .ai-msg-avatar {
+            background: linear-gradient(135deg, var(--neon-purple), var(--primary));
+            color: #fff;
+        }
+        .ai-msg-bubble {
+            padding: 8px 12px;
+            border-radius: 8px;
+            max-width: 85%;
+            word-break: break-word;
+        }
+        .ai-msg-user .ai-msg-bubble {
+            background: var(--primary);
+            color: #fff;
+            border-top-left-radius: 2px;
+            margin-left: auto;
+        }
+        .ai-msg-ai .ai-msg-bubble {
+            background: var(--sidebar-hover);
+            color: var(--text);
+            border-top-right-radius: 2px;
+            border: 1px solid var(--card-border);
+        }
+        .ai-msg-error .ai-msg-bubble {
+            background: rgba(229,57,53,.1);
+            color: var(--danger);
+            border: 1px solid rgba(229,57,53,.3);
+        }
+        .ai-msg-bubble pre {
+            background: rgba(0,0,0,.15);
+            border-radius: 4px;
+            padding: 8px 10px;
+            overflow-x: auto;
+            margin: 6px 0;
+            font-size: .8rem;
+            font-family: "Consolas","Monaco","Menlo",monospace;
+        }
+        .ai-msg-bubble code {
+            background: rgba(0,0,0,.12);
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-family: "Consolas","Monaco","Menlo",monospace;
+            font-size: .82em;
+        }
+        .ai-msg-bubble pre code { background: none; padding: 0; }
+        .ai-msg-bubble p { margin: 4px 0; }
+        .ai-msg-bubble ul, .ai-msg-bubble ol { margin: 4px 0; padding-left: 20px; }
+        .ai-msg-bubble a { color: var(--primary); }
+        .ai-msg-loading .ai-msg-bubble { color: var(--text-secondary); font-style: italic; }
+        .ai-msg-loading .ai-msg-bubble::after {
+            content: '▌';
+            animation: ai-blink 1s step-end infinite;
+        }
+        @keyframes ai-blink { 50% { opacity: 0; } }
+        /* AI Config Modal */
+        .ai-modal-backdrop {
+            position: fixed; inset: 0; z-index: 9999;
+            background: rgba(0,0,0,.45);
+            display: none; align-items: center; justify-content: center;
+        }
+        .ai-modal-backdrop.show { display: flex; }
+        .ai-modal {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 18px 20px;
+            width: 460px;
+            max-width: 92vw;
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,.3);
+        }
+        .ai-modal h3 {
+            font-size: .95rem; color: var(--primary);
+            margin-bottom: 12px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .ai-modal h3 button {
+            background: transparent; border: none; color: var(--text-secondary);
+            cursor: pointer; font-size: 1.2rem; padding: 0; line-height: 1;
+        }
+        .ai-provider-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px;
+            margin-bottom: 12px;
+        }
+        .ai-provider-btn {
+            padding: 6px 10px;
+            background: var(--sidebar-hover);
+            border: 1px solid var(--card-border);
+            border-radius: 5px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: .78rem;
+            text-align: left;
+            transition: all .15s;
+        }
+        .ai-provider-btn:hover { border-color: var(--primary); color: var(--primary); }
     </style>
     <!-- 同步应用保存的主题, 避免首屏闪烁 -->
     <script>
@@ -1052,6 +1168,9 @@
             </div>
             <div class="nav-item" data-panel="download">
                 <span class="nav-icon">&#8681;</span><span class="nav-label">文件下载</span>
+            </div>
+            <div class="nav-item" data-panel="ai">
+                <span class="nav-icon">&#129302;</span><span class="nav-label">AI 助手</span>
             </div>
         </nav>
         <div class="sidebar-footer">
@@ -1244,6 +1363,34 @@
                     </div>
                 </div>
             </div>
+
+            <!-- AI Assistant Panel -->
+            <div class="panel" id="panel-ai">
+                <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden">
+                    <div class="card-title"><span class="icon">&#129302;</span> AI 助手</div>
+                    <!-- AI Config Bar -->
+                    <div id="aiConfigStatus" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--sidebar-hover);border:1px solid var(--card-border);border-radius:6px;font-size:.82rem">
+                        <span id="aiConfigInfo" style="color:var(--text-secondary)">未配置 AI</span>
+                        <button class="btn btn-sm btn-outline" onclick="openAiConfigModal()" style="padding:3px 10px;font-size:.75rem">&#9881; AI 设置</button>
+                    </div>
+                    <!-- Chat Messages -->
+                    <div id="aiChatMessages" style="flex:1;min-height:0;overflow-y:auto;padding:10px;border:1px solid var(--card-border);border-radius:6px;background:var(--card-bg);margin-bottom:10px"></div>
+                    <!-- Quick Actions -->
+                    <div id="aiQuickActions" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+                        <button class="btn btn-sm btn-outline" onclick="aiSendQuick('当前 MinIO 桶里有哪些文件?')">📋 桶内文件一览</button>
+                        <button class="btn btn-sm btn-outline" onclick="aiSendQuick('帮我分析一下 downfile 目录下最新的 5 个文件')">🔍 最新 5 个文件</button>
+                        <button class="btn btn-sm btn-outline" onclick="aiSendQuick('当前 MinIO 连接状态是否正常?')">✅ 连接诊断</button>
+                        <button class="btn btn-sm btn-danger" onclick="aiClearHistory()" style="padding:3px 10px;font-size:.75rem">🗑️ 清空对话</button>
+                    </div>
+                    <!-- Input -->
+                    <div style="display:flex;gap:8px;align-items:flex-end">
+                        <textarea id="aiInput" rows="2" placeholder="输入消息... (Shift+Enter 换行, Enter 发送)"
+                                  style="flex:1;padding:8px 12px;border:1px solid var(--card-border);border-radius:6px;background:var(--card-bg);color:var(--text);font-size:.85rem;resize:none;outline:none"
+                                  onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();aiSendMessage()}"></textarea>
+                        <button class="btn btn-primary" id="aiSendBtn" onclick="aiSendMessage()" style="height:38px">&#10148; 发送</button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1258,6 +1405,34 @@
         </div>
         <div class="progress-bar-container">
             <div class="progress-bar" id="bottomProgressBar" style="width:0%"></div>
+        </div>
+    </div>
+
+    <!-- AI Config Modal -->
+    <div class="ai-modal-backdrop" id="aiConfigModal" onclick="if(event.target===this) closeAiConfigModal()">
+        <div class="ai-modal">
+            <h3>AI 设置 <button onclick="closeAiConfigModal()">&#10005;</button></h3>
+            <div id="aiProviderList" class="ai-provider-grid"></div>
+            <div class="form-group">
+                <label>API Base URL</label>
+                <input type="text" class="form-control" id="aiBaseUrl" placeholder="https://api.openai.com/v1">
+            </div>
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" class="form-control" id="aiApiKey" placeholder="sk-...">
+            </div>
+            <div class="form-group">
+                <label>模型名</label>
+                <input type="text" class="form-control" id="aiModel" placeholder="gpt-4o">
+            </div>
+            <div class="form-group">
+                <label>System Prompt (可选)</label>
+                <textarea class="form-control" id="aiSystemPrompt" rows="3" placeholder="你是..."></textarea>
+            </div>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" onclick="saveAiConfig()" style="flex:1">💾 保存</button>
+                <button class="btn btn-outline" onclick="testAiConfig()">🧪 测试连接</button>
+            </div>
         </div>
     </div>
 
@@ -2374,6 +2549,227 @@
     })();
     bindDropZone();
     loadConfig();
+
+    // =================== AI Chat JS ===================
+    var aiMessages = [];
+    var aiProviders = [];
+    var aiCurrentXhr = null;
+
+    function switchPanel(name) {
+        document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+        var p = document.getElementById('panel-' + name);
+        if (p) p.classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(function(n){
+            n.classList.toggle('active', n.dataset.panel === name);
+        });
+        var titles = {config:'连接配置', upload:'文件上传', download:'文件下载', ai:'AI 助手'};
+        document.getElementById('pageTitle').textContent = titles[name] || '';
+        if (name === 'ai') loadAiConfigStatus();
+    }
+
+    // 重写 nav-item onclick, 改为 switchPanel
+    document.addEventListener('click', function(e){
+        var ni = e.target.closest('.nav-item');
+        if (ni && ni.dataset.panel) switchPanel(ni.dataset.panel);
+    });
+
+    function loadAiConfigStatus() {
+        apiRequest('GET', '/api/ai/config', null, function(err, resp){
+            var info = document.getElementById('aiConfigInfo');
+            if (err) { info.textContent = '未配置 AI'; info.style.color = 'var(--danger)'; return; }
+            var base = (resp.base_url || '').replace(/^https?:\/\//, '');
+            var model = resp.model || '';
+            var masked = resp.api_key_masked || '';
+            if (base && masked) {
+                info.textContent = base + ' · ' + model + ' · Key: ' + masked;
+                info.style.color = 'var(--success)';
+            } else {
+                info.textContent = '未配置 AI';
+                info.style.color = 'var(--text-secondary)';
+            }
+        });
+    }
+
+    function openAiConfigModal() {
+        document.getElementById('aiConfigModal').classList.add('show');
+        apiRequest('GET', '/api/ai/config', null, function(err, resp){
+            if (!resp) return;
+            if (resp.base_url) document.getElementById('aiBaseUrl').value = resp.base_url;
+            if (resp.model) document.getElementById('aiModel').value = resp.model;
+            if (resp.system_prompt) document.getElementById('aiSystemPrompt').value = resp.system_prompt;
+        });
+        apiRequest('GET', '/api/ai/providers', null, function(err, resp){
+            if (!resp) return;
+            aiProviders = resp;
+            var grid = document.getElementById('aiProviderList');
+            grid.innerHTML = '';
+            resp.forEach(function(p){
+                grid.innerHTML += '<button class="ai-provider-btn" onclick="applyAiProvider(\'' + p.id + '\',\'' + escapeAttr(p.base_url) + '\',\'' + escapeAttr(p.default_model) + '\')">' + p.name + '</button>';
+            });
+        });
+    }
+
+    function closeAiConfigModal() {
+        document.getElementById('aiConfigModal').classList.remove('show');
+    }
+
+    function applyAiProvider(id, url, model) {
+        document.getElementById('aiBaseUrl').value = url;
+        document.getElementById('aiModel').value = model;
+        showToast('info', '已填入 ' + id);
+    }
+
+    function saveAiConfig() {
+        var payload = {
+            base_url: document.getElementById('aiBaseUrl').value.trim(),
+            model: document.getElementById('aiModel').value.trim(),
+            system_prompt: document.getElementById('aiSystemPrompt').value.trim(),
+        };
+        var key = document.getElementById('aiApiKey').value.trim();
+        if (key) payload.api_key = key;
+        if (!payload.base_url || !payload.model) { showToast('error', 'Base URL 和模型名必填'); return; }
+        apiRequest('POST', '/api/ai/config', payload, function(err, resp){
+            if (err) { showToast('error', '保存失败: ' + err); return; }
+            showToast('success', 'AI 配置已保存');
+            closeAiConfigModal();
+            loadAiConfigStatus();
+        });
+    }
+
+    function testAiConfig() {
+        saveAiConfig();
+        // 等保存完再测
+        setTimeout(function(){
+            var oldMsgs = aiMessages.slice();
+            aiMessages = [];
+            aiSendText('你好, 回复"连接成功"四个字即可');
+            setTimeout(function(){
+                aiMessages = oldMsgs;
+            }, 4000);
+        }, 300);
+    }
+
+    function aiSendQuick(text) {
+        document.getElementById('aiInput').value = text;
+        aiSendMessage();
+    }
+
+    function aiClearHistory() {
+        aiMessages = [];
+        document.getElementById('aiChatMessages').innerHTML = '';
+        showToast('info', '对话已清空');
+    }
+
+    function aiRenderMarkdown(text) {
+        var html = escapeHtml(text);
+        // 代码块 ```
+        html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+        // 行内代码
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        // 粗体 **
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        // 斜体 *
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        // 链接 [text](url)
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+        // 换行
+        html = html.replace(/\n/g, '<br>');
+        return html;
+    }
+
+    function aiAppendMsg(role, content) {
+        var container = document.getElementById('aiChatMessages');
+        var div = document.createElement('div');
+        div.className = 'ai-msg ai-msg-' + role;
+        var avatar = role === 'user' ? '👤' : '🤖';
+        div.innerHTML = '<div class="ai-msg-avatar">' + avatar + '</div><div class="ai-msg-bubble">' + (role === 'ai' ? aiRenderMarkdown(content) : escapeHtml(content)) + '</div>';
+        container.appendChild(div);
+        container.scrollTop = container.scrollHeight;
+        return div;
+    }
+
+    function aiSendText(text) {
+        if (!text || !text.trim()) return;
+        aiMessages.push({role:'user', content:text.trim()});
+        aiAppendMsg('user', text.trim());
+        aiStreamResponse();
+    }
+
+    function aiSendMessage() {
+        var input = document.getElementById('aiInput');
+        var text = input.value.trim();
+        input.value = '';
+        aiSendText(text);
+    }
+
+    function aiStreamResponse() {
+        var loadingDiv = aiAppendMsg('ai', '▌');
+        var bubble = loadingDiv.querySelector('.ai-msg-bubble');
+        bubble.classList.add('ai-msg-loading');
+        var fullContent = '';
+
+        var btn = document.getElementById('aiSendBtn');
+        btn.disabled = true;
+
+        fetch('/minio/api/ai/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({messages: aiMessages}),
+        }).then(function(resp){
+            if (!resp.ok) return resp.text().then(function(t){ throw new Error(t); });
+            var reader = resp.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            function readChunk() {
+                reader.read().then(function(result){
+                    if (result.done) {
+                        bubble.classList.remove('ai-msg-loading');
+                        bubble.textContent = '';
+                        bubble.innerHTML = aiRenderMarkdown(fullContent || '(无响应)');
+                        if (fullContent) aiMessages.push({role:'assistant', content:fullContent});
+                        btn.disabled = false;
+                        return;
+                    }
+                    buffer += decoder.decode(result.value, {stream:true});
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    lines.forEach(function(line){
+                        line = line.trim();
+                        if (!line.startsWith('data: ')) return;
+                        var data = line.slice(6);
+                        if (data === '[DONE]') return;
+                        try {
+                            var obj = JSON.parse(data);
+                            if (obj.error) {
+                                bubble.classList.remove('ai-msg-loading');
+                                bubble.innerHTML = '<span style="color:var(--danger)">❌ ' + escapeHtml(obj.error) + '</span>';
+                                btn.disabled = false;
+                            } else if (obj.content) {
+                                fullContent += obj.content;
+                                bubble.textContent = fullContent + '▌';
+                                document.getElementById('aiChatMessages').scrollTop = 999999;
+                            }
+                        } catch(e) {}
+                    });
+                    readChunk();
+                }).catch(function(err){
+                    bubble.classList.remove('ai-msg-loading');
+                    bubble.innerHTML = '<span style="color:var(--danger)">❌ ' + escapeHtml(err.message) + '</span>';
+                    btn.disabled = false;
+                });
+            }
+            readChunk();
+        }).catch(function(err){
+            bubble.classList.remove('ai-msg-loading');
+            bubble.innerHTML = '<span style="color:var(--danger)">❌ ' + escapeHtml(err.message || err) + '</span>';
+            btn.disabled = false;
+        });
+    }
+
+    // 初次进入 AI 面板时的欢迎语
+    aiMessages.push({role:'assistant', content:'你好! 我是 MinIO 文件管理 AI 助手 🤖\n\n我可以帮你:\n- 📋 分析桶内文件列表\n- 🔍 搜索和识别最新上传文件\n- 📊 生成存储统计报告\n- 💡 解答 MinIO 使用问题\n\n请先点击右上角 **AI 设置** 配置 API Key, 然后开始对话吧 ~'});
+    aiAppendMsg('ai', aiMessages[0].content);
     </script>
 </body>
 </html>

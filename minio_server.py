@@ -17,6 +17,13 @@ import fnmatch
 import zipfile
 import hashlib
 import threading
+
+# AI 功能可选依赖 (requests 用于调 OpenAI 兼容 API)
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
 from datetime import datetime
 from io import BytesIO
 
@@ -1046,6 +1053,152 @@ def health_check():
         "python_version": sys.version,
         "timestamp": datetime.now().isoformat(),
     })
+
+
+# =================== AI 助手 ===================
+
+AI_CONFIG_FILE = os.path.join(os.path.dirname(CONFIG_FILE), ".ai_config.json")
+ai_config_cache = {}
+
+def _load_ai_config():
+    global ai_config_cache
+    if os.path.exists(AI_CONFIG_FILE):
+        try:
+            with open(AI_CONFIG_FILE, "r") as f:
+                ai_config_cache = json.load(f)
+        except Exception:
+            ai_config_cache = {}
+    return ai_config_cache
+
+def _save_ai_config(cfg):
+    global ai_config_cache
+    ai_config_cache = cfg
+    try:
+        with open(AI_CONFIG_FILE, "w") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+@bp.route("/api/ai/config", methods=["GET"])
+def ai_get_config():
+    cfg = _load_ai_config()
+    # 脱敏: API Key 只返回后4位
+    masked = dict(cfg)
+    if masked.get("api_key"):
+        ak = masked["api_key"]
+        masked["api_key_masked"] = (ak[:4] + "****" + ak[-4:]) if len(ak) > 8 else "****"
+        masked["api_key"] = ""
+    return jsonify(masked)
+
+@bp.route("/api/ai/config", methods=["POST"])
+def ai_set_config():
+    data = request.get_json(silent=True) or {}
+    cfg = _load_ai_config()
+    # 只有新值非空时才覆盖, 避免把已保存的 key 清空
+    if data.get("base_url"):
+        cfg["base_url"] = data["base_url"].rstrip("/")
+    if data.get("api_key"):
+        cfg["api_key"] = data["api_key"]
+    if data.get("model"):
+        cfg["model"] = data["model"]
+    if data.get("temperature") is not None:
+        try:
+            cfg["temperature"] = float(data["temperature"])
+        except Exception:
+            pass
+    if data.get("system_prompt"):
+        cfg["system_prompt"] = data["system_prompt"]
+    _save_ai_config(cfg)
+    return jsonify({"message": "AI 配置已保存"})
+
+@bp.route("/api/ai/providers", methods=["GET"])
+def ai_list_providers():
+    """预置的主流 AI 供应商模板, 一键填入."""
+    providers = [
+        {"id": "openai",  "name": "OpenAI",      "base_url": "https://api.openai.com/v1",          "default_model": "gpt-4o"},
+        {"id": "deepseek","name": "DeepSeek",    "base_url": "https://api.deepseek.com/v1",         "default_model": "deepseek-chat"},
+        {"id": "qwen",    "name": "阿里云百炼",  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1", "default_model": "qwen-plus"},
+        {"id": "glm",     "name": "智谱AI",      "base_url": "https://open.bigmodel.cn/api/paas/v4", "default_model": "glm-4"},
+        {"id": "doubao",  "name": "火山方舟",    "base_url": "https://ark.cn-beijing.volces.com/api/v3", "default_model": "doubao-pro-32k"},
+        {"id": "ollama",  "name": "Ollama (本地)","base_url": "http://127.0.0.1:11434/v1",            "default_model": "qwen2.5:7b"},
+    ]
+    return jsonify(providers)
+
+@bp.route("/api/ai/chat", methods=["POST"])
+def ai_chat():
+    """AI 聊天 (SSE 流式). 前端发送 messages 数组, 这里代理到 OpenAI 兼容 API."""
+    if not HAS_REQUESTS:
+        return jsonify({"error": "缺少 requests 依赖, 请 pip install requests"}), 500
+
+    cfg = _load_ai_config()
+    if not cfg.get("api_key") or not cfg.get("base_url"):
+        return jsonify({"error": "请先配置 AI API Key 和 Base URL"}), 400
+
+    data = request.get_json(silent=True) or {}
+    messages = data.get("messages", [])
+    if not messages:
+        return jsonify({"error": "messages 不能为空"}), 400
+
+    # 追加 system prompt
+    sys_prompt = cfg.get("system_prompt", "") or "你是一个专业的文件管理助手, 可以帮助用户分析 MinIO 文件存储情况."
+    full_messages = [{"role": "system", "content": sys_prompt}] + messages
+
+    model = cfg.get("model", "gpt-4o")
+    temperature = float(cfg.get("temperature", 0.7))
+
+    api_url = cfg["base_url"].rstrip("/") + "/chat/completions"
+    api_key = cfg["api_key"]
+
+    def _generate():
+        try:
+            resp = requests.post(
+                api_url,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer " + api_key,
+                },
+                json={
+                    "model": model,
+                    "messages": full_messages,
+                    "temperature": temperature,
+                    "stream": True,
+                },
+                stream=True,
+                timeout=120,
+            )
+            if resp.status_code != 200:
+                err_text = resp.text[:300]
+                yield "data: " + json.dumps({"error": "AI API 返回 %d: %s" % (resp.status_code, err_text)}) + "\n\n"
+                yield "data: [DONE]\n\n"
+                return
+
+            for line in resp.iter_lines(decode_unicode=True):
+                if not line:
+                    continue
+                if line.startswith("data: "):
+                    payload = line[6:]
+                    if payload.strip() == "[DONE]":
+                        yield "data: [DONE]\n\n"
+                        break
+                    try:
+                        obj = json.loads(payload)
+                        delta = obj.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                        if delta:
+                            yield "data: " + json.dumps({"content": delta}) + "\n\n"
+                    except Exception:
+                        yield "data: " + payload + "\n\n"
+        except requests.exceptions.Timeout:
+            yield "data: " + json.dumps({"error": "AI API 请求超时"}) + "\n\n"
+            yield "data: [DONE]\n\n"
+        except requests.exceptions.ConnectionError as e:
+            yield "data: " + json.dumps({"error": "无法连接 AI API: " + str(e)}) + "\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            yield "data: " + json.dumps({"error": "AI 请求失败: " + str(e)}) + "\n\n"
+            yield "data: [DONE]\n\n"
+
+    return Response(_generate(), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 # =================== Init ===================
