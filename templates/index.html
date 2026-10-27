@@ -2574,7 +2574,7 @@
     });
 
     function loadAiConfigStatus() {
-        apiRequest('GET', '/api/ai/config', null, function(err, resp){
+        apiRequest('GET', '/ai/config', null, function(err, resp){
             var info = document.getElementById('aiConfigInfo');
             if (err) { info.textContent = '未配置 AI'; info.style.color = 'var(--danger)'; return; }
             var base = (resp.base_url || '').replace(/^https?:\/\//, '');
@@ -2592,13 +2592,13 @@
 
     function openAiConfigModal() {
         document.getElementById('aiConfigModal').classList.add('show');
-        apiRequest('GET', '/api/ai/config', null, function(err, resp){
+        apiRequest('GET', '/ai/config', null, function(err, resp){
             if (!resp) return;
             if (resp.base_url) document.getElementById('aiBaseUrl').value = resp.base_url;
             if (resp.model) document.getElementById('aiModel').value = resp.model;
             if (resp.system_prompt) document.getElementById('aiSystemPrompt').value = resp.system_prompt;
         });
-        apiRequest('GET', '/api/ai/providers', null, function(err, resp){
+        apiRequest('GET', '/ai/providers', null, function(err, resp){
             if (!resp) return;
             aiProviders = resp;
             var grid = document.getElementById('aiProviderList');
@@ -2628,7 +2628,7 @@
         var key = document.getElementById('aiApiKey').value.trim();
         if (key) payload.api_key = key;
         if (!payload.base_url || !payload.model) { showToast('error', 'Base URL 和模型名必填'); return; }
-        apiRequest('POST', '/api/ai/config', payload, function(err, resp){
+        apiRequest('POST', '/ai/config', payload, function(err, resp){
             if (err) { showToast('error', '保存失败: ' + err); return; }
             showToast('success', 'AI 配置已保存');
             closeAiConfigModal();
