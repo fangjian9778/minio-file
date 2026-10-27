@@ -33,6 +33,9 @@
             --sidebar-bg: #ffffff;
             --sidebar-active: #e8f0fe;
             --sidebar-hover: #f2f6fd;
+            --nav-group-text: #3b4a66;
+            --progress-track: #dbe3ee;
+            --progress-text: #ffffff;
             --text: #1f2937;
             --text-secondary: #5a6b84;
             --text-light: #94a3b8;
@@ -56,6 +59,9 @@
             --sidebar-bg: rgba(8, 12, 24, 0.95);
             --sidebar-active: rgba(0, 229, 255, 0.15);
             --sidebar-hover: rgba(0, 229, 255, 0.08);
+            --nav-group-text: #8fa4c2;
+            --progress-track: #1a2540;
+            --progress-text: #0a0e1a;
             --text: #e0f7ff;
             --text-secondary: #8899b4;
             --text-light: #5a6a84;
@@ -692,7 +698,7 @@
         .upload-zone p { color: var(--text-secondary); font-size: .85rem; }
         /* =================== Progress (Sci-Fi) =================== */
         .progress-bar-container {
-            background: var(--border);
+            background: var(--progress-track);
             border-radius: 10px;
             height: 18px;
             overflow: hidden;
@@ -712,7 +718,7 @@
             justify-content: center;
             font-size: .7rem;
             font-weight: 600;
-            color: #fff;
+            color: var(--progress-text);
             min-width: 35px;
             box-shadow: 0 0 10px var(--primary-glow);
         }
@@ -784,7 +790,7 @@
         .search-type-btn {
             padding: 5px 10px;
             border: 1px solid var(--border);
-            background: white;
+            background: var(--card-bg);
             border-radius: var(--radius);
             font-size: .8rem;
             cursor: pointer;
@@ -808,7 +814,7 @@
         .pagination-btn {
             padding: 5px 10px;
             border: 1px solid var(--border);
-            background: white;
+            background: var(--card-bg);
             border-radius: var(--radius);
             font-size: .8rem;
             cursor: pointer;
@@ -864,12 +870,12 @@
             bottom: 0;
             left: 56px;
             right: 0;
-            background: white;
-            border-top: 1px solid var(--border);
+            background: var(--card-bg);
+            border-top: 1px solid var(--card-border);
             padding: 8px 24px;
             z-index: 100;
             display: none;
-            box-shadow: 0 -2px 8px rgba(0,0,0,.1);
+            box-shadow: 0 -2px 8px rgba(0,0,0,.15);
         }
         .bottom-progress.show { display: block; }
         .bottom-progress .progress-info {
@@ -2960,7 +2966,7 @@
                 var g = resp.find(function(x){ return x.groupKey === gk; });
                 if (!g || !g.items || g.items.length === 0) return;
                 var hdr = document.createElement('div');
-                hdr.style.cssText = 'font-size:.7rem;color:var(--text-secondary);padding:8px 12px 2px;text-transform:uppercase;letter-spacing:1px;font-weight:600;';
+                hdr.style.cssText = 'font-size:.7rem;color:var(--nav-group-text);padding:8px 12px 2px;text-transform:uppercase;letter-spacing:1px;font-weight:600;';
                 hdr.textContent = g.groupLabel;
                 nav.appendChild(hdr);
                 g.items.forEach(function(it) {
