@@ -347,6 +347,7 @@
         }
         /* =================== Panels =================== */
         .panel { display: none; }
+        .sidebar:not(.expanded) .nav-group-hdr { display: none; }
         .panel.active {
             display: flex;
             flex-direction: column;
@@ -1131,6 +1132,56 @@
             transition: all .15s;
         }
         .ai-provider-btn:hover { border-color: var(--primary); color: var(--primary); }
+        /* 通用 Modal */
+        .modal-backdrop {
+            position: fixed; inset: 0; z-index: 9998;
+            background: rgba(0,0,0,.45);
+            display: none; align-items: center; justify-content: center;
+        }
+        .modal {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 18px 20px;
+            width: 100%;
+            max-height: 88vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,.3);
+        }
+        .modal-title {
+            font-size: .95rem; font-weight: 600; color: var(--primary);
+            margin-bottom: 12px; padding-bottom: 8px;
+            border-bottom: 1px solid var(--card-border);
+        }
+        /* ===== 工具栏「⋯ 更多」下拉 (收纳低频按钮) ===== */
+        .more-wrap { position: relative; display: inline-flex; }
+        .more-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 130px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: var(--shadow-glow);
+            z-index: 60;
+            flex-direction: column;
+            padding: 4px;
+        }
+        .more-menu.open { display: flex; }
+        .more-menu button {
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: .8rem;
+            text-align: left;
+            padding: 8px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .more-menu button:hover { background: var(--sidebar-hover); color: var(--primary); }
     </style>
     <!-- 同步应用保存的主题, 避免首屏闪烁 -->
     <script>
@@ -1167,9 +1218,6 @@
         </div>
         <nav class="sidebar-nav" id="sidebarNav">
             <!-- 由 JS 动态渲染（/rs/menu/list） -->
-            <div class="nav-item active" data-panel="config">
-                <span class="nav-icon">&#9881;</span><span class="nav-label">连接配置</span>
-            </div>
         </nav>
         <div class="sidebar-footer">
             <div class="status-badge">
@@ -1238,6 +1286,36 @@
                 <div class="card" id="bucketsCard" style="display:none">
                     <div class="card-title"><span class="icon">&#128451;</span> 已连接桶列表</div>
                     <div id="bucketsList"></div>
+                </div>
+                <!-- AI 供应商连接（与 MinIO 连接并列的统一配置区块） -->
+                <div class="card" id="aiConnCard">
+                    <div class="card-title"><span class="icon">&#129302;</span> AI 供应商连接</div>
+                    <div class="form-group">
+                        <label>快捷选择供应商</label>
+                        <div id="aiProviderList" class="ai-provider-grid"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>API Base URL</label>
+                        <input type="text" class="form-control" id="aiBaseUrl" placeholder="https://api.openai.com/v1">
+                    </div>
+                    <div class="form-row" style="gap:12px">
+                        <div class="form-col" style="flex:1">
+                            <label>API Key</label>
+                            <input type="password" class="form-control" id="aiApiKey" placeholder="sk-...">
+                        </div>
+                        <div class="form-col" style="flex:1">
+                            <label>模型名</label>
+                            <input type="text" class="form-control" id="aiModel" placeholder="gpt-4o">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>System Prompt (可选)</label>
+                        <textarea class="form-control" id="aiSystemPrompt" rows="3" placeholder="你是..."></textarea>
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn btn-primary" onclick="saveAiConfig()">保存配置</button>
+                        <button class="btn btn-outline" onclick="testAiConfig()">🧪 测试连接</button>
+                    </div>
                 </div>
             </div>
 
@@ -1369,19 +1447,27 @@
                     <!-- AI Config Bar -->
                     <div id="aiConfigStatus" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:8px 12px;background:var(--sidebar-hover);border:1px solid var(--card-border);border-radius:6px;font-size:.82rem">
                         <span id="aiConfigInfo" style="color:var(--text-secondary)">未配置 AI</span>
-                        <button class="btn btn-sm btn-outline" onclick="openAiConfigModal()" style="padding:3px 10px;font-size:.75rem">&#9881; AI 设置</button>
+                        <button class="btn btn-sm btn-outline" onclick="openAiConfigModal()" style="padding:3px 10px;font-size:.75rem">&#9881; AI 设置（连接配置）</button>
                     </div>
                     <!-- Chat Messages -->
                     <div id="aiChatMessages" style="flex:1;min-height:0;overflow-y:auto;padding:10px;border:1px solid var(--card-border);border-radius:6px;background:var(--card-bg);margin-bottom:10px"></div>
                     <!-- Quick Actions -->
-                    <div id="aiQuickActions" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+                    <div id="aiQuickActions" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+                        <span style="font-size:.75rem;color:var(--text-secondary)">预设:</span>
+                        <select class="form-control" id="aiPresetSel" title="选择输出格式预设"
+                                style="max-width:200px;padding:3px 8px;font-size:.75rem;height:auto;"
+                                onchange="onAiPresetChange(this.value)"><option value="">默认（不使用预设）</option></select>
                         <button class="btn btn-sm btn-outline" onclick="aiSendQuick('当前 MinIO 桶里有哪些文件?')">📋 桶内文件一览</button>
                         <button class="btn btn-sm btn-outline" onclick="aiSendQuick('帮我分析一下 downfile 目录下最新的 5 个文件')">🔍 最新 5 个文件</button>
                         <button class="btn btn-sm btn-outline" onclick="aiSendQuick('当前 MinIO 连接状态是否正常?')">✅ 连接诊断</button>
                         <button class="btn btn-sm btn-danger" onclick="aiClearHistory()" style="padding:3px 10px;font-size:.75rem">🗑️ 清空对话</button>
                     </div>
+                    <!-- 引用附件 chips -->
+                    <div id="aiAttachChips" style="display:none;gap:6px;flex-wrap:wrap;margin-bottom:8px"></div>
                     <!-- Input -->
                     <div style="display:flex;gap:8px;align-items:flex-end">
+                        <button class="btn btn-sm" onclick="openAiAttachModal()" title="引用文件（菜单资源 / 本地上传 / 外部路径）"
+                                style="height:38px;padding:0 12px">&#128206; 引用</button>
                         <textarea id="aiInput" rows="2" placeholder="输入消息... (Shift+Enter 换行, Enter 发送)"
                                   style="flex:1;padding:8px 12px;border:1px solid var(--card-border);border-radius:6px;background:var(--card-bg);color:var(--text);font-size:.85rem;resize:none;outline:none"
                                   onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();aiSendMessage()}"></textarea>
@@ -1389,7 +1475,6 @@
                     </div>
                 </div>
             </div>
-        </div>
 
             <!-- ======== 需求 2: URL 管理 ======== -->
             <div class="panel" id="panel-urls">
@@ -1397,10 +1482,19 @@
                     <div class="card-title"><span class="icon">&#128279;</span> URL 地址管理</div>
                     <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                         <input class="form-control" id="urls-keyword" placeholder="搜索名称/地址/备注" style="flex:1;min-width:180px;" oninput="crudModule('url').reload()">
-                        <select class="form-control" id="urls-cat1" style="max-width:160px;" onchange="crudModule('url').reload()"><option value="">一级分类</option></select>
+                        <select class="form-control" id="urls-cat1" style="max-width:130px;" onchange="onCatChange('url',1)"><option value="">一级分类</option></select>
+                        <select class="form-control" id="urls-cat2" style="max-width:130px;" onchange="onCatChange('url',2)"><option value="">二级分类</option></select>
+                        <select class="form-control" id="urls-cat3" style="max-width:130px;" onchange="onCatChange('url',3)"><option value="">三级分类</option></select>
                         <button class="btn btn-primary" onclick="crudModule('url').openCreate()">+ 新增</button>
-                        <button class="btn" onclick="crudModule('url').openImport()">批量导入</button>
                         <button class="btn btn-danger" id="urls-batch-del" disabled onclick="crudModule('url').batchDelete()">批量删除</button>
+                        <div class="more-wrap">
+                            <button class="btn btn-sm" onclick="toggleMoreMenu(event)">⋯ 更多</button>
+                            <div class="more-menu">
+                                <button onclick="closeMoreMenus();openCatMgr('url')">分类管理</button>
+                                <button id="urls-group-btn" onclick="closeMoreMenus();crudModule('url').toggleGroupView()">分组视图</button>
+                                <button onclick="closeMoreMenus();crudModule('url').openImport()">批量导入</button>
+                            </div>
+                        </div>
                     </div>
                     <div style="max-height:calc(100vh - 340px);overflow:auto;border:1px solid var(--border);border-radius:6px;">
                         <table class="table" id="urls-table" style="width:100%;border-collapse:collapse;">
@@ -1421,9 +1515,19 @@
                     <div class="card-title"><span class="icon">&#128218;</span> 在线文档管理</div>
                     <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                         <input class="form-control" id="online-docs-keyword" placeholder="搜索名称/地址" style="flex:1;min-width:180px;" oninput="crudModule('online-doc').reload()">
+                        <select class="form-control" id="online-docs-cat1" style="max-width:130px;" onchange="onCatChange('online-doc',1)"><option value="">一级分类</option></select>
+                        <select class="form-control" id="online-docs-cat2" style="max-width:130px;" onchange="onCatChange('online-doc',2)"><option value="">二级分类</option></select>
+                        <select class="form-control" id="online-docs-cat3" style="max-width:130px;" onchange="onCatChange('online-doc',3)"><option value="">三级分类</option></select>
                         <button class="btn btn-primary" onclick="crudModule('online-doc').openCreate()">+ 新增</button>
-                        <button class="btn" onclick="crudModule('online-doc').openImport()">批量导入</button>
                         <button class="btn btn-danger" id="online-docs-batch-del" disabled onclick="crudModule('online-doc').batchDelete()">批量删除</button>
+                        <div class="more-wrap">
+                            <button class="btn btn-sm" onclick="toggleMoreMenu(event)">⋯ 更多</button>
+                            <div class="more-menu">
+                                <button onclick="closeMoreMenus();openCatMgr('online-doc')">分类管理</button>
+                                <button id="online-docs-group-btn" onclick="closeMoreMenus();crudModule('online-doc').toggleGroupView()">分组视图</button>
+                                <button onclick="closeMoreMenus();crudModule('online-doc').openImport()">批量导入</button>
+                            </div>
+                        </div>
                     </div>
                     <div style="max-height:calc(100vh - 340px);overflow:auto;border:1px solid var(--border);border-radius:6px;">
                         <table class="table" id="online-docs-table" style="width:100%;border-collapse:collapse;">
@@ -1444,9 +1548,19 @@
                     <div class="card-title"><span class="icon">&#128196;</span> 线下文档管理</div>
                     <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                         <input class="form-control" id="local-docs-keyword" placeholder="搜索名称/路径" style="flex:1;min-width:180px;" oninput="crudModule('local-doc').reload()">
+                        <select class="form-control" id="local-docs-cat1" style="max-width:130px;" onchange="onCatChange('local-doc',1)"><option value="">一级分类</option></select>
+                        <select class="form-control" id="local-docs-cat2" style="max-width:130px;" onchange="onCatChange('local-doc',2)"><option value="">二级分类</option></select>
+                        <select class="form-control" id="local-docs-cat3" style="max-width:130px;" onchange="onCatChange('local-doc',3)"><option value="">三级分类</option></select>
                         <button class="btn btn-primary" onclick="crudModule('local-doc').openCreate()">+ 新增</button>
-                        <button class="btn" onclick="crudModule('local-doc').openImport()">批量导入</button>
                         <button class="btn btn-danger" id="local-docs-batch-del" disabled onclick="crudModule('local-doc').batchDelete()">批量删除</button>
+                        <div class="more-wrap">
+                            <button class="btn btn-sm" onclick="toggleMoreMenu(event)">⋯ 更多</button>
+                            <div class="more-menu">
+                                <button onclick="closeMoreMenus();openCatMgr('local-doc')">分类管理</button>
+                                <button id="local-docs-group-btn" onclick="closeMoreMenus();crudModule('local-doc').toggleGroupView()">分组视图</button>
+                                <button onclick="closeMoreMenus();crudModule('local-doc').openImport()">批量导入</button>
+                            </div>
+                        </div>
                     </div>
                     <div style="max-height:calc(100vh - 340px);overflow:auto;border:1px solid var(--border);border-radius:6px;">
                         <table class="table" id="local-docs-table" style="width:100%;border-collapse:collapse;">
@@ -1467,9 +1581,19 @@
                     <div class="card-title"><span class="icon">&#128221;</span> MD 文件管理</div>
                     <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                         <input class="form-control" id="md-files-keyword" placeholder="搜索名称/路径" style="flex:1;min-width:180px;" oninput="crudModule('md').reload()">
+                        <select class="form-control" id="md-files-cat1" style="max-width:130px;" onchange="onCatChange('md',1)"><option value="">一级分类</option></select>
+                        <select class="form-control" id="md-files-cat2" style="max-width:130px;" onchange="onCatChange('md',2)"><option value="">二级分类</option></select>
+                        <select class="form-control" id="md-files-cat3" style="max-width:130px;" onchange="onCatChange('md',3)"><option value="">三级分类</option></select>
                         <button class="btn btn-primary" onclick="crudModule('md').openCreate()">+ 新增</button>
-                        <button class="btn" onclick="crudModule('md').openImport()">批量导入</button>
                         <button class="btn btn-danger" id="md-files-batch-del" disabled onclick="crudModule('md').batchDelete()">批量删除</button>
+                        <div class="more-wrap">
+                            <button class="btn btn-sm" onclick="toggleMoreMenu(event)">⋯ 更多</button>
+                            <div class="more-menu">
+                                <button onclick="closeMoreMenus();openCatMgr('md')">分类管理</button>
+                                <button id="md-files-group-btn" onclick="closeMoreMenus();crudModule('md').toggleGroupView()">分组视图</button>
+                                <button onclick="closeMoreMenus();crudModule('md').openImport()">批量导入</button>
+                            </div>
+                        </div>
                     </div>
                     <div style="max-height:calc(100vh - 340px);overflow:auto;border:1px solid var(--border);border-radius:6px;">
                         <table class="table" id="md-files-table" style="width:100%;border-collapse:collapse;">
@@ -1481,6 +1605,31 @@
                         </table>
                     </div>
                     <div class="pagination" id="md-files-pagination" style="display:flex;gap:8px;margin-top:8px;align-items:center;"></div>
+                </div>
+            </div>
+
+            <!-- ======== 需求 1: 内置浏览器 ======== -->
+            <div class="panel" id="panel-browser">
+                <div class="card" style="display:flex;flex-direction:column;height:calc(100vh - 120px);padding:10px;">
+                    <!-- 标签页栏 -->
+                    <div id="browser-tabs" style="display:flex;gap:4px;align-items:center;overflow-x:auto;padding-bottom:6px;border-bottom:1px solid var(--border);flex-shrink:0;"></div>
+                    <!-- 地址栏 -->
+                    <div style="display:flex;gap:6px;align-items:center;padding:8px 0;flex-shrink:0;">
+                        <button class="btn btn-sm" title="后退" onclick="browserGo(-1)">&#8592;</button>
+                        <button class="btn btn-sm" title="前进" onclick="browserGo(1)">&#8594;</button>
+                        <button class="btn btn-sm" title="刷新" onclick="browserReload()">&#8635;</button>
+                        <button class="btn btn-sm" title="新标签页" onclick="browserAddTab()">+</button>
+                        <input class="form-control" id="browser-url" placeholder="输入网址，回车打开"
+                               style="flex:1;" onkeydown="if(event.key==='Enter') browserNavigate(this.value)">
+                        <button class="btn btn-primary btn-sm" onclick="browserNavigate(document.getElementById('browser-url').value)">前往</button>
+                        <button class="btn btn-sm" onclick="browserOpenExternal()" title="用系统浏览器打开">外部打开</button>
+                    </div>
+                    <!-- 页面区 -->
+                    <div style="flex:1;position:relative;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#fff;">
+                        <div id="browser-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:.85rem;">
+                            点击 + 新建标签页，或在 URL 列表中点击「打开」
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1503,8 +1652,13 @@
                     <div class="toolbar" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
                         <input class="form-control" id="ai-presets-keyword" placeholder="搜索名称/描述" style="flex:1;min-width:180px;" oninput="crudModule('ai-preset').reload()">
                         <button class="btn btn-primary" onclick="crudModule('ai-preset').openCreate()">+ 新增预设</button>
-                        <button class="btn" onclick="crudModule('ai-preset').openImport()">批量导入</button>
                         <button class="btn btn-danger" id="ai-presets-batch-del" disabled onclick="crudModule('ai-preset').batchDelete()">批量删除</button>
+                        <div class="more-wrap">
+                            <button class="btn btn-sm" onclick="toggleMoreMenu(event)">⋯ 更多</button>
+                            <div class="more-menu">
+                                <button onclick="closeMoreMenus();crudModule('ai-preset').openImport()">批量导入</button>
+                            </div>
+                        </div>
                     </div>
                     <div style="max-height:calc(100vh - 340px);overflow:auto;border:1px solid var(--border);border-radius:6px;">
                         <table class="table" id="ai-presets-table" style="width:100%;border-collapse:collapse;">
@@ -1561,6 +1715,63 @@
                 </div>
             </div>
 
+            <!-- ======== 分类管理 Modal（一/二/三级） ======== -->
+            <div class="modal-backdrop" id="catMgrModal" onclick="if(event.target===this)this.style.display='none'">
+                <div class="modal" style="max-width:560px;">
+                    <div class="modal-title">分类管理（支持三级）</div>
+                    <div id="catMgrTree" style="max-height:50vh;overflow:auto;border:1px solid var(--border);border-radius:6px;margin-bottom:10px;"></div>
+                    <div style="display:flex;gap:8px;justify-content:flex-end;">
+                        <button class="btn btn-primary" onclick="catCreate('',1)">+ 新增一级分类</button>
+                        <button class="btn" onclick="document.getElementById('catMgrModal').style.display='none'">关闭</button>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /.main-content -->
+    </div><!-- /.main -->
+
+    <!-- AI 引用文件 Modal: 菜单资源 / 本地上传 / 外部路径 -->
+    <div class="modal-backdrop" id="aiAttachModal" onclick="if(event.target===this)this.style.display='none'">
+        <div class="modal" style="max-width:640px;">
+            <div class="modal-title">&#128206; 引用文件</div>
+            <div style="display:flex;gap:6px;margin-bottom:10px;">
+                <button class="btn btn-sm btn-primary" id="aiAttachTabMenu" onclick="aiAttachTab('menu')">菜单文件</button>
+                <button class="btn btn-sm" id="aiAttachTabUpload" onclick="aiAttachTab('upload')">本地上传</button>
+                <button class="btn btn-sm" id="aiAttachTabPath" onclick="aiAttachTab('path')">外部路径</button>
+            </div>
+            <!-- Tab: 菜单文件 (所有菜单的资源) -->
+            <div id="aiAttachPaneMenu" style="display:none;">
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <select class="form-control" id="aiAttachSource" onchange="aiAttachLoadMenu()" style="flex:1;">
+                        <option value="url">URL 地址</option>
+                        <option value="online-doc">在线文档</option>
+                        <option value="local-doc">线下文档</option>
+                        <option value="md">MD 文件</option>
+                    </select>
+                    <input class="form-control" id="aiAttachKeyword" placeholder="搜索" style="flex:1;" oninput="aiAttachLoadMenu()">
+                </div>
+                <div id="aiAttachMenuList" style="max-height:44vh;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;"></div>
+            </div>
+            <!-- Tab: 本地上传 (读取内容注入) -->
+            <div id="aiAttachPaneUpload" style="display:none;">
+                <p style="font-size:.78rem;color:var(--text-secondary);margin-bottom:8px;">选择本地文件，读取文本内容注入对话（单文件 ≤ 200KB 文本）。</p>
+                <input type="file" id="aiAttachFileInput" multiple accept=".txt,.md,.json,.csv,.log,.yaml,.yml,.xml,.js,.ts,.py,.html,.ini,.conf,.cfg"
+                       onchange="aiAttachPickFiles(this.files)" style="font-size:.8rem;margin-bottom:8px;">
+                <div id="aiAttachUploadList" style="max-height:34vh;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;"></div>
+            </div>
+            <!-- Tab: 外部路径 (只挂路径引用) -->
+            <div id="aiAttachPanePath" style="display:none;">
+                <div style="display:flex;gap:8px;margin-bottom:8px;">
+                    <input class="form-control" id="aiAttachPathInput" placeholder="输入本机文件绝对路径, 如 /Users/me/notes/a.md" style="flex:1;">
+                    <button class="btn btn-sm" onclick="aiAttachAddPath()">+ 挂路径</button>
+                </div>
+                <div id="aiAttachPathList" style="max-height:34vh;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;"></div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+                <span id="aiAttachCount" style="margin-right:auto;font-size:.78rem;color:var(--text-secondary);align-self:center;"></span>
+                <button class="btn btn-primary" onclick="aiAttachConfirm()">确定</button>
+                <button class="btn" onclick="document.getElementById('aiAttachModal').style.display='none'">关闭</button>
+            </div>
         </div>
     </div>
     <div class="bottom-progress" id="bottomProgress">
@@ -1576,33 +1787,7 @@
         </div>
     </div>
 
-    <!-- AI Config Modal -->
-    <div class="ai-modal-backdrop" id="aiConfigModal" onclick="if(event.target===this) closeAiConfigModal()">
-        <div class="ai-modal">
-            <h3>AI 设置 <button onclick="closeAiConfigModal()">&#10005;</button></h3>
-            <div id="aiProviderList" class="ai-provider-grid"></div>
-            <div class="form-group">
-                <label>API Base URL</label>
-                <input type="text" class="form-control" id="aiBaseUrl" placeholder="https://api.openai.com/v1">
-            </div>
-            <div class="form-group">
-                <label>API Key</label>
-                <input type="password" class="form-control" id="aiApiKey" placeholder="sk-...">
-            </div>
-            <div class="form-group">
-                <label>模型名</label>
-                <input type="text" class="form-control" id="aiModel" placeholder="gpt-4o">
-            </div>
-            <div class="form-group">
-                <label>System Prompt (可选)</label>
-                <textarea class="form-control" id="aiSystemPrompt" rows="3" placeholder="你是..."></textarea>
-            </div>
-            <div style="display:flex;gap:8px">
-                <button class="btn btn-primary" onclick="saveAiConfig()" style="flex:1">💾 保存</button>
-                <button class="btn btn-outline" onclick="testAiConfig()">🧪 测试连接</button>
-            </div>
-        </div>
-    </div>
+    <!-- AI 供应商配置已并入「连接配置」页 aiConnCard，不再使用独立弹窗 -->
 
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
@@ -2740,9 +2925,10 @@
         document.querySelectorAll('.nav-item').forEach(function(n){
             n.classList.toggle('active', n.dataset.panel === name);
         });
-        var titles = {config:'连接配置', upload:'文件上传', download:'文件下载', ai:'AI 助手'};
+        var titles = {config:'连接配置', upload:'文件上传', download:'文件下载', ai:'AI 助手', browser:'内置浏览器'};
         document.getElementById('pageTitle').textContent = titles[name] || '';
-        if (name === 'ai') loadAiConfigStatus();
+        if (name === 'ai') { loadAiConfigStatus(); loadAiPresets(); }
+        if (name === 'config') { loadAiConnFields(); }
     }
 
     // 重写 nav-item onclick, 改为 switchPanel
@@ -2750,6 +2936,131 @@
         var ni = e.target.closest('.nav-item');
         if (ni && ni.dataset.panel) switchPanel(ni.dataset.panel);
     });
+
+    // =================== 需求 1: 内置浏览器（iframe 多标签） ===================
+    var browserTabs = [];      // [{id, title, url, iframe}]
+    var browserActiveId = null;
+    var browserSeq = 0;
+
+    function normalizeUrl(u) {
+        u = (u || '').trim();
+        if (!u) return '';
+        if (u.indexOf('/') === 0 || u.indexOf('#') === 0) return u;   // 站内相对路径
+        if (!/^https?:\/\//i.test(u) && !/^file:\/\//i.test(u)) {
+            if (u.indexOf('/') === 0) return 'file://' + u;           // 本地绝对路径
+            u = (u.indexOf('.') > -1 && u.indexOf(' ') === -1) ? 'https://' + u : 'https://www.baidu.com/s?wd=' + encodeURIComponent(u);
+        }
+        return u;
+    }
+
+    function browserAddTab(url) {
+        url = normalizeUrl(url || '');
+        var id = 'bt' + (++browserSeq);
+        var iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#fff;';
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-modals');
+        iframe.src = url || 'about:blank';
+        var host = document.getElementById('panel-browser').querySelector('div[style*="position:relative"]');
+        host.appendChild(iframe);
+        var tab = {id: id, title: url ? hostTitleOf(url) : '新标签页', url: url, iframe: iframe};
+        browserTabs.push(tab);
+        browserSwitchTab(id);
+        if (url) document.getElementById('browser-url').value = url;
+        return tab;
+    }
+
+    function hostTitleOf(u) {
+        try { var h = new URL(u, location.href).hostname; if (h) return h.replace(/^www\./, ''); } catch (e) {}
+        var seg = (u || '').split('/').filter(Boolean).pop();
+        return seg || '页面';
+    }
+
+    function browserCloseTab(id, ev) {
+        if (ev) { ev.stopPropagation(); }
+        var i = browserTabs.findIndex(function(t){ return t.id === id; });
+        if (i === -1) return;
+        var t = browserTabs[i];
+        if (t.iframe) t.iframe.remove();
+        browserTabs.splice(i, 1);
+        if (browserActiveId === id) {
+            browserActiveId = null;
+            var next = browserTabs[Math.min(i, browserTabs.length - 1)];
+            if (next) browserSwitchTab(next.id);
+            else renderBrowserTabs();
+        } else {
+            renderBrowserTabs();
+        }
+    }
+
+    function browserSwitchTab(id) {
+        browserActiveId = id;
+        browserTabs.forEach(function(t){
+            t.iframe.style.display = (t.id === id) ? 'block' : 'none';
+        });
+        var cur = browserTabs.find(function(t){ return t.id === id; });
+        if (cur) document.getElementById('browser-url').value = cur.url || '';
+        renderBrowserTabs();
+    }
+
+    function renderBrowserTabs() {
+        var bar = document.getElementById('browser-tabs');
+        var empty = document.getElementById('browser-empty');
+        if (empty) empty.style.display = browserTabs.length ? 'none' : 'flex';
+        var html = browserTabs.map(function(t){
+            var active = t.id === browserActiveId;
+            return '<div onclick="browserSwitchTab(\'' + t.id + '\')" title="' + escapeAttr(t.url || '') + '" ' +
+                'style="display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:5px;cursor:pointer;white-space:nowrap;font-size:.75rem;max-width:180px;overflow:hidden;' +
+                'background:' + (active ? 'var(--sidebar-active)' : 'var(--sidebar-hover)') + ';' +
+                'color:' + (active ? 'var(--primary)' : 'var(--text-secondary)') + ';border:1px solid ' + (active ? 'var(--primary)' : 'transparent') + ';">' +
+                '<span style="overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(t.title) + '</span>' +
+                '<span onclick="browserCloseTab(\'' + t.id + '\', event)" style="opacity:.6;padding:0 2px;border-radius:3px;">&#10005;</span>' +
+                '</div>';
+        }).join('');
+        bar.innerHTML = html;
+    }
+
+    function browserActive() { return browserTabs.find(function(t){ return t.id === browserActiveId; }); }
+
+    function browserNavigate(u) {
+        u = normalizeUrl(u);
+        if (!u) return;
+        var cur = browserActive();
+        if (!cur) { cur = browserAddTab(u); return; }
+        cur.url = u;
+        cur.title = hostTitleOf(u);
+        cur.iframe.src = u;
+        document.getElementById('browser-url').value = u;
+        renderBrowserTabs();
+    }
+
+    function browserGo(dir) {
+        var cur = browserActive();
+        if (!cur) return;
+        try { cur.iframe.contentWindow.history.go(dir); } catch (e) { showToast('info', '跨域页面不支持后退/前进'); }
+    }
+
+    function browserReload() {
+        var cur = browserActive();
+        if (!cur || !cur.url) return;
+        cur.iframe.src = cur.url;
+    }
+
+    function browserOpenExternal() {
+        var cur = browserActive();
+        var u = cur && cur.url ? cur.url : normalizeUrl(document.getElementById('browser-url').value);
+        if (!u) { showToast('info', '请先输入网址'); return; }
+        window.open(u, '_blank');
+    }
+
+    // 供 URL/文档列表「打开」按钮调用
+    function openInBrowser(url) {
+        if (!url) { showToast('info', '该条目没有可打开的地址'); return; }
+        switchPanel('browser');
+        document.querySelectorAll('.nav-item').forEach(function(n){
+            n.classList.toggle('active', n.dataset.panel === 'browser');
+        });
+        browserNavigate(url);
+    }
 
     function loadAiConfigStatus() {
         apiRequest('GET', '/ai/config', null, function(err, resp){
@@ -2768,8 +3079,8 @@
         });
     }
 
-    function openAiConfigModal() {
-        document.getElementById('aiConfigModal').classList.add('show');
+    // 加载 AI 供应商配置到「连接配置」页内字段
+    function loadAiConnFields() {
         apiRequest('GET', '/ai/config', null, function(err, resp){
             if (!resp) return;
             if (resp.base_url) document.getElementById('aiBaseUrl').value = resp.base_url;
@@ -2787,8 +3098,17 @@
         });
     }
 
-    function closeAiConfigModal() {
-        document.getElementById('aiConfigModal').classList.remove('show');
+    // AI 助手页「AI 设置」→ 跳转到连接配置页的 AI 供应商区块
+    function openAiConfigModal() {
+        switchPanel('config');
+        loadAiConnFields();
+        var item = document.querySelector('.nav-item[data-panel="config"]');
+        if (item) {
+            document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+            item.classList.add('active');
+        }
+        var card = document.getElementById('aiConnCard');
+        if (card) setTimeout(function(){ card.scrollIntoView({behavior:'smooth', block:'center'}); }, 80);
     }
 
     function applyAiProvider(id, url, model) {
@@ -2809,7 +3129,6 @@
         apiRequest('POST', '/ai/config', payload, function(err, resp){
             if (err) { showToast('error', '保存失败: ' + err); return; }
             showToast('success', 'AI 配置已保存');
-            closeAiConfigModal();
             loadAiConfigStatus();
         });
     }
@@ -2873,6 +3192,193 @@
         aiStreamResponse();
     }
 
+    // =================== AI 引用文件 (菜单资源 / 本地上传 / 外部路径) ===================
+    var aiAttachments = [];   // [{type:'menu'|'upload'|'path', key, name, module?, id?, path?, content?, url?}]
+    var aiAttachUploads = []; // 本地上传暂存 (确定时并入 aiAttachments)
+
+    function aiAttachKey(a) { return a.type + ':' + (a.module || '') + ':' + (a.id || a.path || a.name); }
+
+    function openAiAttachModal() {
+        document.getElementById('aiAttachModal').style.display = 'flex';
+        aiAttachTab('menu');
+        aiAttachRenderAll();
+    }
+
+    function aiAttachTab(tab) {
+        ['menu','upload','path'].forEach(function(t) {
+            document.getElementById('aiAttachPane' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = (t === tab ? 'block' : 'none');
+            var b = document.getElementById('aiAttachTab' + t.charAt(0).toUpperCase() + t.slice(1));
+            if (b) b.classList.toggle('btn-primary', t === tab);
+        });
+        if (tab === 'menu') aiAttachLoadMenu();
+    }
+
+    function aiAttachLoadMenu() {
+        var src = document.getElementById('aiAttachSource').value;
+        var kw = document.getElementById('aiAttachKeyword').value.trim();
+        var listEl = document.getElementById('aiAttachMenuList');
+        listEl.innerHTML = '<div style="padding:10px;color:var(--text-light);font-size:.8rem;">加载中...</div>';
+        var url = '/rs/' + src + '/list?page=1&pageSize=200' + (kw ? '&keyword=' + encodeURIComponent(kw) : '');
+        apiRequest('GET', url, null, function(err, data) {
+            if (err) { listEl.innerHTML = '<div style="padding:10px;color:var(--danger);font-size:.8rem;">加载失败: ' + escapeHtml(err) + '</div>'; return; }
+            var rows = (data && data.rows) || [];
+            if (!rows.length) { listEl.innerHTML = '<div style="padding:10px;color:var(--text-light);font-size:.8rem;">暂无数据</div>'; return; }
+            listEl.innerHTML = rows.map(function(r) {
+                var a = {type:'menu', module:src, id:r.id, name:r.name, url:r.url || '', path:r.filePath || ''};
+                var checked = aiAttachments.some(function(x){ return aiAttachKey(x) === aiAttachKey(a); });
+                return '<label style="display:flex;gap:8px;align-items:center;padding:6px 4px;font-size:.8rem;cursor:pointer;border-bottom:1px solid var(--border);">'
+                    + '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="aiAttachToggleMenu(this)" '
+                    + 'data-module="' + escapeAttr(src) + '" data-id="' + escapeAttr(r.id) + '" data-name="' + escapeAttr(r.name) + '" '
+                    + 'data-url="' + escapeAttr(r.url || '') + '" data-path="' + escapeAttr(r.filePath || '') + '">'
+                    + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeAttr(r.url || r.filePath || r.name) + '">' + escapeHtml(r.name) + '</span></label>';
+            }).join('');
+        });
+    }
+
+    function aiAttachToggleMenu(cb) {
+        var a = {type:'menu', module:cb.dataset.module, id:cb.dataset.id, name:cb.dataset.name, url:cb.dataset.url, path:cb.dataset.path};
+        var key = aiAttachKey(a);
+        var idx = aiAttachments.findIndex(function(x){ return aiAttachKey(x) === key; });
+        if (cb.checked) { if (idx < 0) aiAttachments.push(a); }
+        else if (idx >= 0) aiAttachments.splice(idx, 1);
+        aiAttachUpdateCount();
+    }
+
+    function aiAttachPickFiles(files) {
+        Array.prototype.forEach.call(files, function(f) {
+            if (f.size > 200 * 1024) {
+                showToast('warning', '跳过 ' + f.name + '：超过 200KB');
+                return;
+            }
+            var reader = new FileReader();
+            reader.onload = function() {
+                aiAttachUploads.push({type:'upload', name:f.name, content:String(reader.result || ''), size:f.size});
+                aiAttachRenderUploads();
+            };
+            reader.readAsText(f);
+        });
+        document.getElementById('aiAttachFileInput').value = '';
+    }
+
+    function aiAttachRenderUploads() {
+        var el = document.getElementById('aiAttachUploadList');
+        if (!aiAttachUploads.length) { el.innerHTML = '<div style="padding:8px;color:var(--text-light);font-size:.78rem;">尚未选择文件</div>'; return; }
+        el.innerHTML = aiAttachUploads.map(function(a, i) {
+            return '<div style="display:flex;gap:8px;align-items:center;padding:5px 4px;font-size:.8rem;border-bottom:1px solid var(--border);">'
+                + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(a.name) + '</span>'
+                + '<span style="color:var(--text-light);font-size:.72rem;">' + formatSize(a.size || 0) + '</span>'
+                + '<button class="btn btn-sm btn-danger" style="padding:1px 8px;font-size:.7rem;" onclick="aiAttachUploads.splice(' + i + ',1);aiAttachRenderUploads()">移除</button></div>';
+        }).join('');
+    }
+
+    function aiAttachAddPath() {
+        var input = document.getElementById('aiAttachPathInput');
+        var p = input.value.trim();
+        if (!p) return;
+        var a = {type:'path', path:p, name:p.split('/').pop()};
+        if (!aiAttachments.some(function(x){ return aiAttachKey(x) === aiAttachKey(a); })) aiAttachments.push(a);
+        input.value = '';
+        aiAttachRenderAll();
+    }
+
+    function aiAttachRemove(i) {
+        aiAttachments.splice(i, 1);
+        aiAttachRenderAll();
+    }
+
+    function aiAttachUpdateCount() {
+        var el = document.getElementById('aiAttachCount');
+        if (el) el.textContent = '已选 ' + aiAttachments.length + ' 项';
+    }
+
+    function aiAttachRenderAll() {
+        aiAttachUpdateCount();
+        // 菜单 tab 勾选状态回显
+        document.querySelectorAll('#aiAttachMenuList input[type=checkbox]').forEach(function(cb) {
+            var key = 'menu:' + cb.dataset.module + ':' + cb.dataset.id;
+            cb.checked = aiAttachments.some(function(x){ return aiAttachKey(x) === key; });
+        });
+        aiAttachRenderUploads();
+        // 外部路径列表
+        var paths = aiAttachments.filter(function(a){ return a.type === 'path'; });
+        var el = document.getElementById('aiAttachPathList');
+        el.innerHTML = paths.length ? paths.map(function(a) {
+            var i = aiAttachments.indexOf(a);
+            return '<div style="display:flex;gap:8px;align-items:center;padding:5px 4px;font-size:.8rem;border-bottom:1px solid var(--border);">'
+                + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + escapeAttr(a.path) + '">' + escapeHtml(a.path) + '</span>'
+                + '<button class="btn btn-sm btn-danger" style="padding:1px 8px;font-size:.7rem;" onclick="aiAttachRemove(' + i + ')">移除</button></div>';
+        }).join('') : '<div style="padding:8px;color:var(--text-light);font-size:.78rem;">尚未挂载路径</div>';
+        renderAiAttachChips();
+    }
+
+    function aiAttachConfirm() {
+        // 并入本地上传项 (按名称去重)
+        aiAttachUploads.forEach(function(u) {
+            if (!aiAttachments.some(function(x){ return x.type === 'upload' && x.name === u.name; })) aiAttachments.push(u);
+        });
+        aiAttachUploads = [];
+        document.getElementById('aiAttachFileInput').value = '';
+        document.getElementById('aiAttachModal').style.display = 'none';
+        renderAiAttachChips();
+        showToast('success', '已引用 ' + aiAttachments.length + ' 项');
+    }
+
+    function renderAiAttachChips() {
+        var box = document.getElementById('aiAttachChips');
+        if (!aiAttachments.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+        box.style.display = 'flex';
+        var typeLabel = {menu:'菜单', upload:'上传', path:'路径'};
+        box.innerHTML = aiAttachments.map(function(a, i) {
+            return '<span style="display:inline-flex;align-items:center;gap:4px;font-size:.72rem;padding:2px 8px;border-radius:12px;'
+                + 'background:var(--sidebar-active);border:1px solid var(--card-border);color:var(--text);max-width:220px;">'
+                + '<span style="opacity:.65;">[' + typeLabel[a.type] + ']</span>'
+                + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(a.name) + '</span>'
+                + '<button onclick="aiAttachRemove(' + i + ')" style="background:none;border:none;color:var(--danger);cursor:pointer;padding:0;font-size:.8rem;">&times;</button></span>';
+        }).join('');
+    }
+
+    // =================== 需求 7: AI 预设选择 ===================
+    var aiPresets = [];
+    var aiCurrentPresetId = '';
+
+    function loadAiPresets(cb) {
+        apiRequest('GET', '/rs/ai-preset/active', null, function(err, resp) {
+            aiPresets = (!err && Array.isArray(resp)) ? resp : [];
+            var sel = document.getElementById('aiPresetSel');
+            var keep = aiCurrentPresetId;
+            var html = '<option value="">默认（不使用预设）</option>' + aiPresets.map(function(p){
+                return '<option value="' + escapeAttr(p.id) + '">' + escapeHtml(p.name) +
+                    (p.isDefault ? ' ★' : '') + '</option>';
+            }).join('');
+            sel.innerHTML = html;
+            if (keep && aiPresets.some(function(p){ return p.id === keep; })) {
+                sel.value = keep;
+            } else {
+                var def = aiPresets.find(function(p){ return p.isDefault; });
+                if (def) { sel.value = def.id; aiCurrentPresetId = def.id; }
+                else { aiCurrentPresetId = ''; sel.value = ''; }
+            }
+            if (cb) cb();
+        });
+    }
+
+    function onAiPresetChange(v) {
+        aiCurrentPresetId = v || '';
+        var p = aiPresets.find(function(x){ return x.id === aiCurrentPresetId; });
+        if (p) showToast('info', '已选择预设「' + p.name + '」');
+    }
+
+    function aiMessagesForRequest() {
+        var msgs = aiMessages.slice();
+        var p = aiPresets.find(function(x){ return x.id === aiCurrentPresetId; });
+        if (p && p.formatPrompt) {
+            var sys = p.formatPrompt;
+            if (p.exampleOutput) sys += '\n\n【输出示例】\n' + p.exampleOutput;
+            msgs.unshift({role:'system', content:sys});
+        }
+        return msgs;
+    }
+
     function aiSendMessage() {
         var input = document.getElementById('aiInput');
         var text = input.value.trim();
@@ -2892,7 +3398,7 @@
         fetch('/minio/api/ai/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({messages: aiMessages}),
+            body: JSON.stringify({messages: aiMessagesForRequest(), attachments: aiAttachments}),
         }).then(function(resp){
             if (!resp.ok) return resp.text().then(function(t){ throw new Error(t); });
             var reader = resp.body.getReader();
@@ -2952,21 +3458,19 @@
     // =================== 需求 8: 菜单分组动态渲染 ===================
     var menuGroupsData = [];
     function loadAndRenderMenu() {
-        apiRequest('GET', '/menu/list', null, function(err, resp) {
+        apiRequest('GET', '/rs/menu/list', null, function(err, resp) {
             if (err) { console.warn('菜单加载失败:', err); return; }
             menuGroupsData = resp;
             var nav = document.getElementById('sidebarNav');
-            // 保留原有的固定项（连接配置）
-            var fixedItems = nav.querySelectorAll('.nav-item[data-panel="config"]');
             nav.innerHTML = '';
-            fixedItems.forEach(function(el){ nav.appendChild(el); });
 
             var groupOrder = ['resources', 'ai', 'system'];
             groupOrder.forEach(function(gk) {
                 var g = resp.find(function(x){ return x.groupKey === gk; });
                 if (!g || !g.items || g.items.length === 0) return;
                 var hdr = document.createElement('div');
-                hdr.style.cssText = 'font-size:.7rem;color:var(--nav-group-text);padding:8px 12px 2px;text-transform:uppercase;letter-spacing:1px;font-weight:600;';
+                hdr.className = 'nav-group-hdr';
+                hdr.style.cssText = 'font-size:.7rem;color:var(--nav-group-text);padding:8px 12px 2px;text-transform:uppercase;letter-spacing:1px;font-weight:600;white-space:nowrap;overflow:hidden;';
                 hdr.textContent = g.groupLabel;
                 nav.appendChild(hdr);
                 g.items.forEach(function(it) {
@@ -2985,7 +3489,12 @@
                             p.classList.add('active');
                             document.getElementById('pageTitle').textContent = it.displayName;
                             // 触发对应模块 load
-                            if (crudModules[item.dataset.panel]) crudModules[item.dataset.panel].load();
+                            if (crudModules[item.dataset.panel]) {
+                                if (crudModules[item.dataset.panel]._cfg && crudModules[item.dataset.panel]._cfg.catModule) {
+                                    initCatFilter(item.dataset.panel);
+                                }
+                                crudModules[item.dataset.panel].load();
+                            }
                         }
                     });
                     nav.appendChild(item);
@@ -3020,6 +3529,191 @@
     var crudModules = {};
     function crudModule(name) { return crudModules[name]; }
 
+    // =================== 三级分类工具 ===================
+    var catTreeCache = {};   // category.module -> tree
+    function loadCatTree(module, cb) {
+        if (catTreeCache[module]) { cb(catTreeCache[module]); return; }
+        apiRequest('GET', '/rs/category/' + module, null, function(err, resp) {
+            if (err) { cb([]); return; }
+            catTreeCache[module] = resp || [];
+            cb(catTreeCache[module]);
+        });
+    }
+    function invalidateCatTree(module) { delete catTreeCache[module]; }
+
+    function fillSelect(selId, list, placeholder) {
+        var el = document.getElementById(selId);
+        if (!el) return;
+        var cur = el.value;
+        el.innerHTML = '<option value="">' + placeholder + '</option>' +
+            (list || []).map(function(n) {
+                return '<option value="' + n.id + '">' + escapeHtml(n.name) + '</option>';
+            }).join('');
+        // 保持仍存在的选中项
+        if (cur && (list || []).some(function(n){ return n.id === cur; })) el.value = cur;
+    }
+
+    function catPrefixOf(cfg) { return cfg.tableId.replace('-table', ''); }
+
+    // 初始化某模块的级联筛选（拉树 + 填一级）
+    function initCatFilter(name) {
+        var mod = crudModules[name];
+        if (!mod || !mod._cfg.catModule) return;
+        loadCatTree(mod._cfg.catModule, function(tree) {
+            fillSelect(catPrefixOf(mod._cfg) + '-cat1', tree, '一级分类');
+            fillSelect(catPrefixOf(mod._cfg) + '-cat2', [], '二级分类');
+            fillSelect(catPrefixOf(mod._cfg) + '-cat3', [], '三级分类');
+        });
+    }
+
+    // 级联下拉变化：填充下一级 + 清空更深层 + 重新加载
+    function onCatChange(name, level) {
+        var mod = crudModules[name];
+        if (!mod) return;
+        var p = catPrefixOf(mod._cfg);
+        loadCatTree(mod._cfg.catModule, function(tree) {
+            var sel1 = document.getElementById(p + '-cat1');
+            var n1 = tree.find(function(n){ return n.id === sel1.value; }) || null;
+            if (level === 1) {
+                fillSelect(p + '-cat2', n1 ? (n1.children || []) : [], '二级分类');
+                fillSelect(p + '-cat3', [], '三级分类');
+            } else if (level === 2) {
+                var sel2 = document.getElementById(p + '-cat2');
+                var n2 = (n1 ? (n1.children || []) : []).find(function(n){ return n.id === sel2.value; }) || null;
+                fillSelect(p + '-cat3', n2 ? (n2.children || []) : [], '三级分类');
+            }
+            mod.page = 1;
+            mod.load();
+        });
+    }
+
+    // 读取当前选中的分类参数串
+    function catQuery(mod) {
+        var cfg = mod._cfg;
+        if (!cfg.catModule) return '';
+        var p = catPrefixOf(cfg);
+        var v = function(l) { var e = document.getElementById(p + '-cat' + l); return e ? e.value : ''; };
+        var v1 = v(1), v2 = v(2), v3 = v(3);
+        if (cfg.catMode === 'single') {
+            var s = v3 || v2 || v1;
+            return s ? '&categoryId=' + encodeURIComponent(s) : '';
+        }
+        var qs = '';
+        if (v1) qs += '&categoryId1=' + encodeURIComponent(v1);
+        if (v2) qs += '&categoryId2=' + encodeURIComponent(v2);
+        if (v3) qs += '&categoryId3=' + encodeURIComponent(v3);
+        return qs;
+    }
+
+    // 分组行折叠/展开
+    function toggleCatGroupRow(tr) {
+        var depth = parseInt(tr.dataset.depth || '0', 10);
+        var wasCollapsed = tr.dataset.collapsed === '1';
+        tr.dataset.collapsed = wasCollapsed ? '0' : '1';
+        var arrow = tr.querySelector('.cat-grp-arrow');
+        if (arrow) arrow.innerHTML = wasCollapsed ? '&#9662;' : '&#9656;';
+        // 收集区间内行（到第一个 depth<=d 的分组行为止）
+        var rows = [], el = tr.nextElementSibling;
+        while (el) {
+            if (el.classList.contains('cat-grp-row') && parseInt(el.dataset.depth || '0', 10) <= depth) break;
+            rows.push(el);
+            el = el.nextElementSibling;
+        }
+        // 折叠：全部隐藏；展开：按祖先折叠栈重新计算可见性
+        rows.forEach(function(r) { r.style.display = wasCollapsed ? '' : 'none'; });
+        if (wasCollapsed) {
+            var stack = [tr];
+            rows.forEach(function(r) {
+                if (r.classList.contains('cat-grp-row')) {
+                    var d = parseInt(r.dataset.depth || '0', 10);
+                    while (stack.length && parseInt(stack[stack.length - 1].dataset.depth || '0', 10) >= d) stack.pop();
+                    stack.push(r);
+                }
+                var hidden = stack.some(function(g) { return g.dataset.collapsed === '1'; });
+                r.style.display = hidden ? 'none' : '';
+            });
+        }
+    }
+
+    // =================== 分类管理 Modal ===================
+    var _catMgrModule = null;
+    // ===== 工具栏「⋯ 更多」下拉 =====
+    function closeMoreMenus() {
+        document.querySelectorAll('.more-menu.open').forEach(function(m) { m.classList.remove('open'); });
+    }
+    function toggleMoreMenu(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
+        var menu = e && e.currentTarget ? e.currentTarget.nextElementSibling : null;
+        if (!menu) return;
+        var wasOpen = menu.classList.contains('open');
+        closeMoreMenus();
+        if (!wasOpen) menu.classList.add('open');
+    }
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest || !e.target.closest('.more-wrap')) closeMoreMenus();
+    });
+
+    function openCatMgr(name) {
+        _catMgrModule = name;
+        var mod = crudModules[name];
+        document.getElementById('catMgrModal').style.display = 'flex';
+        renderCatMgr();
+    }
+    function renderCatMgr() {
+        var mod = crudModules[_catMgrModule];
+        var area = document.getElementById('catMgrTree');
+        loadCatTree(mod._cfg.catModule, function(tree) {
+            if (!tree.length) {
+                area.innerHTML = '<div style="color:var(--text-secondary);padding:12px;text-align:center">暂无分类，点击下方新增一级分类</div>';
+                return;
+            }
+            function nodeHtml(n, depth) {
+                var pad = 10 + depth * 22;
+                var h = '<div style="display:flex;align-items:center;gap:6px;padding:5px 8px 5px ' + pad + 'px;border-bottom:1px solid var(--border);font-size:.85rem">' +
+                    '<span style="color:var(--text-secondary)">L' + n.level + '</span>' +
+                    '<span style="flex:1">' + escapeHtml(n.name) + '</span>';
+                if (depth < 2) h += '<button class="btn btn-sm" onclick="catCreate(\'' + n.id + '\',' + (n.level + 1) + ')">+ 子级</button>';
+                h += '<button class="btn btn-sm" onclick="catRename(\'' + n.id + '\')">改名</button>' +
+                    '<button class="btn btn-sm btn-danger" onclick="catDelete(\'' + n.id + '\')">删除</button></div>';
+                (n.children || []).forEach(function(c) { h += nodeHtml(c, depth + 1); });
+                return h;
+            }
+            area.innerHTML = tree.map(function(n) { return nodeHtml(n, 0); }).join('');
+        });
+    }
+    function catCreate(parentId, level) {
+        var name = prompt('输入 ' + level + ' 级分类名称:');
+        if (!name) return;
+        var mod = crudModules[_catMgrModule];
+        apiRequest('POST', '/rs/category', { module: mod._cfg.catModule, name: name, level: level, parentId: parentId || '' }, function(err) {
+            if (err) { showToast('error', err); return; }
+            invalidateCatTree(mod._cfg.catModule);
+            renderCatMgr();
+            initCatFilter(_catMgrModule);
+        });
+    }
+    function catRename(id) {
+        var name = prompt('输入新名称:');
+        if (!name) return;
+        var mod = crudModules[_catMgrModule];
+        apiRequest('PUT', '/rs/category/' + id, { name: name }, function(err) {
+            if (err) { showToast('error', err); return; }
+            invalidateCatTree(mod._cfg.catModule);
+            renderCatMgr();
+            initCatFilter(_catMgrModule);
+        });
+    }
+    function catDelete(id) {
+        if (!confirm('确认删除该分类及其子分类?')) return;
+        var mod = crudModules[_catMgrModule];
+        apiRequest('DELETE', '/rs/category/' + id, {}, function(err) {
+            if (err) { showToast('error', err); return; }
+            invalidateCatTree(mod._cfg.catModule);
+            renderCatMgr();
+            initCatFilter(_catMgrModule);
+        });
+    }
+
     function defineCrudModule(cfg) {
         var mod = {
             name: cfg.name,
@@ -3030,63 +3724,81 @@
             rows: [],
             selectedIds: {},
             editedId: null,
+            groupView: false,
 
             load: function() {
                 var self = this;
                 var kwEl = document.getElementById(cfg.keywordId);
                 var keyword = kwEl ? kwEl.value.trim() : '';
-                var qs = '?page=' + self.page + '&pageSize=' + self.pageSize;
+                var size = self.groupView ? 1000 : self.pageSize;
+                var qs = '?page=' + self.page + '&pageSize=' + size;
                 if (keyword) qs += '&keyword=' + encodeURIComponent(keyword);
+                qs += catQuery(self);
                 apiRequest('GET', cfg.listApi + qs, null, function(err, resp) {
                     if (err) { showToast('error', '加载失败: ' + err); return; }
                     self.rows = resp.rows || [];
                     self.total = resp.total || 0;
-                    self.render();
+                    if (self.groupView && cfg.catModule) {
+                        loadCatTree(cfg.catModule, function(tree) { self.renderGrouped(tree); });
+                    } else {
+                        self.render();
+                    }
                 });
             },
 
-            render: function() {
+            rowHtml: function(row) {
+                var self = this;
+                var selected = self.selectedIds[row.id] ? 'checked' : '';
+                var cells = cfg.columns.map(function(c) {
+                    var v = row[c.key];
+                    if (c.key === 'fileSize' && v) v = (v/1024).toFixed(1) + ' KB';
+                    if (c.key === 'exists') v = v ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗ 缺失</span>';
+                    if (c.key === 'isDefault') v = v ? '⭐ 默认' : '';
+                    if (c.key === 'enabled') v = v ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗</span>';
+                    return '<td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:.85rem">' + (v || '') + '</td>';
+                }).join('');
+                var actions = '';
+                if (cfg.rowActions.indexOf('open') >= 0) {
+                    var openUrl = row.url || '';
+                    if (!openUrl && cfg.name === 'local-doc') openUrl = '/rs/local-doc/download/' + row.id;
+                    if (!openUrl && cfg.name === 'md') openUrl = '/rs/md/' + row.id + '/page';
+                    if (!openUrl) openUrl = row.filePath || '';
+                    actions += '<button class="btn btn-sm" onclick="openInBrowser(\'' + (openUrl || '').replace(/'/g,"\\'") + '\')">打开</button> ';
+                }
+                if (cfg.rowActions.indexOf('preview') >= 0) {
+                    actions += '<button class="btn btn-sm" onclick="openDocPreview(\'' + row.id + '\')">预览</button> ';
+                }
+                if (cfg.rowActions.indexOf('edit') >= 0) {
+                    actions += '<button class="btn btn-sm" onclick="crudModule(\'' + self.name + '\').openEdit(\'' + row.id + '\')">编辑</button> ';
+                }
+                if (cfg.rowActions.indexOf('viewMd') >= 0) {
+                    actions += '<button class="btn btn-sm" onclick="openMdView(\'' + row.id + '\')">查看</button> ';
+                }
+                if (cfg.rowActions.indexOf('delete') >= 0) {
+                    actions += '<button class="btn btn-sm btn-danger" onclick="crudModule(\'' + self.name + '\').deleteOne(\'' + row.id + '\')">删除</button>';
+                }
+                return '<tr>' +
+                    '<td style="padding:8px;border-bottom:1px solid var(--border);text-align:center"><input type="checkbox" ' + selected + ' data-id="' + row.id + '" onchange="crudModule(\'' + self.name + '\').toggleOne(this)"></td>' +
+                    cells + '<td style="padding:6px;border-bottom:1px solid var(--border);white-space:nowrap">' + actions + '</td></tr>';
+            },
+
+            render: function(keepRows) {
                 var self = this;
                 var tbody = document.getElementById(cfg.tbodyId);
                 if (!tbody) return;
-                if (self.rows.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="' + (cfg.columns.length + 2) + '" style="text-align:center;padding:32px;color:var(--text-secondary)">暂无数据</td></tr>';
-                } else {
-                    tbody.innerHTML = self.rows.map(function(row) {
-                        var selected = self.selectedIds[row.id] ? 'checked' : '';
-                        var cells = cfg.columns.map(function(c) {
-                            var v = row[c.key];
-                            if (c.key === 'fileSize' && v) v = (v/1024).toFixed(1) + ' KB';
-                            if (c.key === 'exists') v = v ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗ 缺失</span>';
-                            if (c.key === 'isDefault') v = v ? '⭐ 默认' : '';
-                            if (c.key === 'enabled') v = v ? '<span style="color:var(--success)">✓</span>' : '<span style="color:var(--danger)">✗</span>';
-                            return '<td style="padding:8px 10px;border-bottom:1px solid var(--border);font-size:.85rem">' + (v || '') + '</td>';
-                        }).join('');
-                        var actions = '';
-                        if (cfg.rowActions.indexOf('open') >= 0) {
-                            var openUrl = row.url || row.filePath;
-                            actions += '<button class="btn btn-sm" onclick="window.open(\'' + (openUrl || '').replace(/'/g,"\\'") + '\',\'_blank\')">打开</button> ';
-                        }
-                        if (cfg.rowActions.indexOf('preview') >= 0) {
-                            actions += '<button class="btn btn-sm" onclick="openDocPreview(\'' + row.id + '\')">预览</button> ';
-                        }
-                        if (cfg.rowActions.indexOf('edit') >= 0) {
-                            actions += '<button class="btn btn-sm" onclick="crudModule(\'' + self.name + '\').openEdit(\'' + row.id + '\')">编辑</button> ';
-                        }
-                        if (cfg.rowActions.indexOf('viewMd') >= 0) {
-                            actions += '<button class="btn btn-sm" onclick="openMdView(\'' + row.id + '\')">查看</button> ';
-                        }
-                        if (cfg.rowActions.indexOf('delete') >= 0) {
-                            actions += '<button class="btn btn-sm btn-danger" onclick="crudModule(\'' + self.name + '\').deleteOne(\'' + row.id + '\')">删除</button>';
-                        }
-                        return '<tr>' +
-                            '<td style="padding:8px;border-bottom:1px solid var(--border);text-align:center"><input type="checkbox" ' + selected + ' data-id="' + row.id + '" onchange="crudModule(\'' + self.name + '\').toggleOne(this)"></td>' +
-                            cells + '<td style="padding:6px;border-bottom:1px solid var(--border);white-space:nowrap">' + actions + '</td></tr>';
-                    }).join('');
+                if (!keepRows) {
+                    if (self.rows.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="' + (cfg.columns.length + 2) + '" style="text-align:center;padding:32px;color:var(--text-secondary)">暂无数据</td></tr>';
+                    } else {
+                        tbody.innerHTML = self.rows.map(function(row) { return self.rowHtml(row); }).join('');
+                    }
                 }
                 // 分页
                 var pageEl = document.getElementById(cfg.pageId);
                 if (pageEl) {
+                    if (self.groupView) {
+                        pageEl.innerHTML = '<span style="font-size:.8rem;color:var(--text-secondary)">分组视图 · 共 ' + self.rows.length + ' 条（不分页）</span>';
+                    } else {
                     var totalPages = Math.max(1, Math.ceil(self.total / self.pageSize));
                     var html = '';
                     html += '<span style="font-size:.8rem;color:var(--text-secondary)">共 ' + self.total + ' 条</span>';
@@ -3099,13 +3811,67 @@
                         html += '<span style="color:var(--primary);font-size:.8rem">已选 ' + selCount + ' 项</span>';
                     }
                     pageEl.innerHTML = html;
+                    }
                 }
                 // 批量按钮状态
                 var batchDel = document.getElementById(cfg.batchDelBtnId);
                 if (batchDel) batchDel.disabled = Object.keys(self.selectedIds).length === 0;
             },
 
-            goPage: function(p) { this.page = p; this.load(); },
+            // 分组视图：按一级>二级>三级分类树分组渲染，可折叠
+            renderGrouped: function(tree) {
+                var self = this;
+                var tbody = document.getElementById(cfg.tbodyId);
+                if (!tbody) return;
+                self._groupTree = tree;
+                var cols = cfg.columns.length + 2;
+                // 记录归入其最深分类节点
+                var byCat = {};
+                self.rows.forEach(function(r) {
+                    var cid = (cfg.catMode === 'single')
+                        ? (r.categoryId || '')
+                        : (r.categoryId3 || r.categoryId2 || r.categoryId1 || '');
+                    (byCat[cid] = byCat[cid] || []).push(r);
+                });
+                var out = [];
+                function walk(list, depth, prefix) {
+                    (list || []).forEach(function(node) {
+                        var path = prefix + node.id;
+                        var mine = byCat[node.id] || [];
+                        var kidCount = 0;
+                        (function count(n) {
+                            (n.children || []).forEach(function(k) { kidCount += (byCat[k.id] || []).length; count(k); });
+                        })(node);
+                        var total = mine.length + kidCount;
+                        out.push('<tr class="cat-grp-row" data-depth="' + depth + '" onclick="toggleCatGroupRow(this)" style="cursor:pointer;background:var(--sidebar-hover,rgba(0,0,0,.03))">' +
+                            '<td colspan="' + cols + '" style="padding:6px 10px 6px ' + (12 + depth * 18) + 'px;font-weight:600;font-size:.85rem;border-bottom:1px solid var(--border)">' +
+                            '<span class="cat-grp-arrow">&#9656;</span> ' + escapeHtml(node.name) +
+                            ' <span style="font-weight:400;color:var(--text-secondary)">(' + total + ')</span></td></tr>');
+                        mine.forEach(function(r) {
+                            out.push('<tr data-grp="' + path + '">' + self.rowHtml(r).replace(/^<tr>/, '').replace(/<\/tr>$/, '') + '</tr>');
+                        });
+                        walk(node.children, depth + 1, path + '|');
+                    });
+                }
+                walk(tree, 0, '');
+                if (out.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="' + cols + '" style="text-align:center;padding:32px;color:var(--text-secondary)">暂无数据</td></tr>';
+                } else {
+                    tbody.innerHTML = out.join('');
+                }
+                self.render(true);
+            },
+
+            toggleGroupView: function() {
+                var self = this;
+                self.groupView = !self.groupView;
+                self.page = 1;
+                var btn = document.getElementById(catPrefixOf(cfg) + '-group-btn');
+                if (btn) btn.classList.toggle('btn-primary', self.groupView);
+                self.load();
+            },
+
+            goPage: function(p) { if (this.groupView) return; this.page = p; this.load(); },
             reload: function() { this.page = 1; this.load(); },
             toggleAll: function(el) {
                 var self = this;
@@ -3114,12 +3880,14 @@
                     if (el.checked) self.selectedIds[b.dataset.id] = true;
                     else delete self.selectedIds[b.dataset.id];
                 });
-                self.render();
+                if (self.groupView && self._groupTree) self.renderGrouped(self._groupTree);
+                else self.render();
             },
             toggleOne: function(el) {
                 if (el.checked) this.selectedIds[el.dataset.id] = true;
                 else delete this.selectedIds[el.dataset.id];
-                this.render();
+                if (this.groupView && this._groupTree) this.renderGrouped(this._groupTree);
+                else this.render();
             },
 
             openCreate: function() { this.editedId = null; openCrudModal(this); },
@@ -3135,8 +3903,20 @@
                 var data = {};
                 cfg.fields.forEach(function(f) {
                     var v = document.getElementById('f_' + f.key);
-                    data[f.key] = v ? v.value.trim() : '';
+                    if (f.type === 'cascade' || !v) return;
+                    data[f.key] = (f.type === 'checkbox') ? v.checked : v.value.trim();
                 });
+                // 所属分类（cascade 字段）
+                if (cfg.fields.some(function(f){ return f.type === 'cascade'; })) {
+                    var cv = function(id) { var e = document.getElementById(id); return e ? e.value : ''; };
+                    if (cfg.catMode === 'single') {
+                        data.categoryId = cv('f_cat3') || cv('f_cat2') || cv('f_cat1') || '';
+                    } else {
+                        data.categoryId1 = cv('f_cat1');
+                        data.categoryId2 = cv('f_cat2');
+                        data.categoryId3 = cv('f_cat3');
+                    }
+                }
                 // 必填校验
                 for (var i = 0; i < cfg.fields.length; i++) {
                     var f = cfg.fields[i];
@@ -3194,7 +3974,8 @@
                 m.style.display = 'flex';
             }
         };
-        crudModules[name] = mod;
+        mod._cfg = cfg;
+        crudModules[cfg.name] = mod;
         return mod;
     }
 
@@ -3223,33 +4004,95 @@
             if (type === 'checkbox') {
                 return '<div class="form-group" style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="f_' + f.key + '" ' + (val ? 'checked' : '') + '><label>' + f.label + '</label></div>';
             }
+            if (type === 'cascade') {
+                return '<div class="form-group"><label>' + f.label + req + '</label>' +
+                    '<div style="display:flex;gap:6px;">' +
+                    '<select class="form-control" id="f_cat1" onchange="onCascadeChange(1)"><option value="">一级分类</option></select>' +
+                    '<select class="form-control" id="f_cat2" onchange="onCascadeChange(2)"><option value="">二级分类</option></select>' +
+                    '<select class="form-control" id="f_cat3" onchange="onCascadeChange(3)"><option value="">三级分类</option></select>' +
+                    '</div></div>';
+            }
             return '<div class="form-group"><label>' + f.label + req + '</label><input type="' + type + '" class="form-control" id="f_' + f.key + '" value="' + escapeAttr(val) + '" placeholder="' + ph + '"></div>';
         }).join('');
         document.getElementById('crudModal').style.display = 'flex';
+        if (cfg.fields.some(function(f){ return f.type === 'cascade'; })) fillCascade(mod, row);
+    }
+
+    // 表单内所属分类级联
+    function onCascadeChange(level) {
+        var mod = _crudActiveModule;
+        if (!mod) return;
+        loadCatTree(mod._cfg.catModule, function(tree) {
+            var n1 = tree.find(function(n){ return n.id === document.getElementById('f_cat1').value; }) || null;
+            if (level === 1) {
+                fillSelect('f_cat2', n1 ? (n1.children || []) : [], '二级分类');
+                fillSelect('f_cat3', [], '三级分类');
+            } else if (level === 2) {
+                var n2 = (n1 ? (n1.children || []) : []).find(function(n){ return n.id === document.getElementById('f_cat2').value; }) || null;
+                fillSelect('f_cat3', n2 ? (n2.children || []) : [], '三级分类');
+            }
+        });
+    }
+    function fillCascade(mod, row) {
+        loadCatTree(mod._cfg.catModule, function(tree) {
+            fillSelect('f_cat1', tree, '一级分类');
+            // 编辑回填：three 模式按 categoryId1/2/3；single 模式按 categoryId 找路径
+            var c1 = '', c2 = '', c3 = '';
+            if (row) {
+                if (mod._cfg.catMode === 'single') {
+                    var target = row.categoryId || '';
+                    (function find(list, path) {
+                        for (var i = 0; i < list.length; i++) {
+                            var n = list[i];
+                            var p = path.concat(n.id);
+                            if (n.id === target) { c1 = p[0] || ''; c2 = p[1] || ''; c3 = p[2] || ''; return true; }
+                            if (n.children && find(n.children, p)) return true;
+                        }
+                        return false;
+                    })(tree, []);
+                } else {
+                    c1 = row.categoryId1 || ''; c2 = row.categoryId2 || ''; c3 = row.categoryId3 || '';
+                }
+            }
+            if (c1) {
+                document.getElementById('f_cat1').value = c1;
+                var n1 = tree.find(function(n){ return n.id === c1; }) || null;
+                fillSelect('f_cat2', n1 ? (n1.children || []) : [], '二级分类');
+                if (c2) {
+                    document.getElementById('f_cat2').value = c2;
+                    var n2 = (n1 ? (n1.children || []) : []).find(function(n){ return n.id === c2; }) || null;
+                    fillSelect('f_cat3', n2 ? (n2.children || []) : [], '三级分类');
+                    if (c3) document.getElementById('f_cat3').value = c3;
+                } else if (mod._cfg.catMode === 'single' && c3) {
+                    // single 且选中的就是一级节点
+                }
+            }
+        });
     }
 
     // === 定义各模块 ===
     defineCrudModule({
         name: 'url', panel: 'urls', keywordId: 'urls-keyword',
         listApi: '/rs/url/list', createApi: '/rs/url',
+        catModule: 'url', catMode: 'three',
         updateApi: '/rs/url/{id}', deleteApi: '/rs/url/{id}',
         batchDeleteApi: '/rs/url/batch-delete', importModule: 'url',
         tableId: 'urls-table', tbodyId: 'urls-tbody', pageId: 'urls-pagination',
         checkAllId: 'urls-check-all', batchDelBtnId: 'urls-batch-del',
         rowActions: ['open','edit','delete'],
-        columns: [{key:'name',label:'名称'},{key:'url',label:'地址'},{key:'remark',label:'备注'},{key:'updatedAt',label:'更新时间'}]
-    });
-    crudModules['url']._cfg = {
-        name: 'url', fields: [
+        columns: [{key:'name',label:'名称'},{key:'url',label:'地址'},{key:'remark',label:'备注'},{key:'updatedAt',label:'更新时间'}],
+        fields: [
             {key:'name',label:'名称',required:true},
             {key:'url',label:'地址',required:true,placeholder:'https://...'},
+            {key:'category',label:'所属分类',type:'cascade'},
             {key:'remark',label:'备注',type:'textarea'}
         ]
-    };
+    });
 
     defineCrudModule({
         name: 'online-doc', panel: 'online-docs', keywordId: 'online-docs-keyword',
         listApi: '/rs/online-doc/list', createApi: '/rs/online-doc',
+        catModule: 'onlineDoc', catMode: 'three',
         updateApi: '/rs/online-doc/{id}', deleteApi: '/rs/online-doc/{id}',
         batchDeleteApi: '/rs/online-doc/batch-delete', importModule: 'onlineDoc',
         tableId: 'online-docs-table', tbodyId: 'online-docs-tbody', pageId: 'online-docs-pagination',
@@ -3259,20 +4102,15 @@
         fields: [
             {key:'name',label:'名称',required:true},
             {key:'url',label:'在线文档地址',required:true},
+            {key:'category',label:'所属分类',type:'cascade'},
             {key:'remark',label:'备注',type:'textarea'}
         ]
     });
-    crudModules['online-doc']._cfg = {
-        name: 'online-doc', fields: [
-            {key:'name',label:'名称',required:true},
-            {key:'url',label:'在线文档地址',required:true},
-            {key:'remark',label:'备注',type:'textarea'}
-        ]
-    };
 
     defineCrudModule({
         name: 'local-doc', panel: 'local-docs', keywordId: 'local-docs-keyword',
         listApi: '/rs/local-doc/list', createApi: '/rs/local-doc',
+        catModule: 'localDoc', catMode: 'three',
         updateApi: '/rs/local-doc/{id}', deleteApi: '/rs/local-doc/{id}',
         batchDeleteApi: '/rs/local-doc/batch-delete', importModule: 'localDoc',
         tableId: 'local-docs-table', tbodyId: 'local-docs-tbody', pageId: 'local-docs-pagination',
@@ -3282,39 +4120,28 @@
         fields: [
             {key:'name',label:'名称 (留空自动用文件名)'},
             {key:'filePath',label:'文件路径',required:true,placeholder:'C:/docs/report.pdf'},
+            {key:'category',label:'所属分类',type:'cascade'},
             {key:'remark',label:'备注',type:'textarea'}
         ]
     });
-    crudModules['local-doc']._cfg = {
-        name: 'local-doc', fields: [
-            {key:'name',label:'名称 (留空自动用文件名)'},
-            {key:'filePath',label:'文件路径',required:true,placeholder:'C:/docs/report.pdf'},
-            {key:'remark',label:'备注',type:'textarea'}
-        ]
-    };
 
     defineCrudModule({
         name: 'md', panel: 'md-files', keywordId: 'md-files-keyword',
         listApi: '/rs/md/list', createApi: '/rs/md',
+        catModule: 'md', catMode: 'single',
         updateApi: '/rs/md/{id}', deleteApi: '/rs/md/{id}',
         batchDeleteApi: '/rs/md/batch-delete', importModule: 'md',
         tableId: 'md-files-table', tbodyId: 'md-files-tbody', pageId: 'md-files-pagination',
         checkAllId: 'md-files-check-all', batchDelBtnId: 'md-files-batch-del',
-        rowActions: ['viewMd','edit','delete'], hasLocalFile: true,
+        rowActions: ['viewMd','open','edit','delete'], hasLocalFile: true,
         columns: [{key:'name',label:'名称'},{key:'filePath',label:'路径'},{key:'exists',label:'存在'},{key:'updatedAt',label:'更新时间'}],
         fields: [
             {key:'name',label:'名称 (留空自动用文件名)'},
             {key:'filePath',label:'MD 文件路径',required:true},
+            {key:'category',label:'所属分类',type:'cascade'},
             {key:'remark',label:'备注'}
         ]
     });
-    crudModules['md']._cfg = {
-        name: 'md', fields: [
-            {key:'name',label:'名称 (留空自动用文件名)'},
-            {key:'filePath',label:'MD 文件路径',required:true},
-            {key:'remark',label:'备注'}
-        ]
-    };
 
     defineCrudModule({
         name: 'ai-preset', panel: 'ai-presets', keywordId: 'ai-presets-keyword',
@@ -3333,15 +4160,6 @@
             {key:'isDefault',label:'设为默认',type:'checkbox'}
         ]
     });
-    crudModules['ai-preset']._cfg = {
-        name: 'ai-preset', fields: [
-            {key:'name',label:'预设名称',required:true},
-            {key:'description',label:'描述'},
-            {key:'formatPrompt',label:'提示词 (纯文本)',required:true,type:'textarea',placeholder:'你是... 请按以下格式输出...'},
-            {key:'enabled',label:'启用',type:'checkbox'},
-            {key:'isDefault',label:'设为默认',type:'checkbox'}
-        ]
-    };
 
     // === Modal Save 绑定 ===
     document.getElementById('crudModalSave').addEventListener('click', function() {
@@ -3355,7 +4173,7 @@
         var fmt = document.getElementById('importFormat').value;
         var text = document.getElementById('importText').value;
         if (!text.trim()) { showToast('error', '请输入导入内容'); return; }
-        apiRequest('POST', '/import/' + moduleName, { format: fmt, text: text }, function(err, resp) {
+        apiRequest('POST', '/rs/import/' + moduleName, { format: fmt, text: text }, function(err, resp) {
             if (err) { showToast('error', '导入失败: ' + err); return; }
             showToast('success', '导入完成: 成功 ' + resp.success + ', 失败 ' + resp.fail);
             m.style.display = 'none';
@@ -3371,7 +4189,7 @@
     function openMdView(id) {
         _mdViewId = id;
         _mdEditMode = false;
-        apiRequest('GET', '/md/' + id, null, function(err, resp) {
+        apiRequest('GET', '/rs/md/' + id, null, function(err, resp) {
             if (err) { showToast('error', '加载失败: ' + err); return; }
             _mdContent = resp.content;
             document.getElementById('mdViewTitle').textContent = resp.name;
@@ -3395,7 +4213,7 @@
         if (!_mdEditMode || !_mdViewId) return;
         var ta = document.getElementById('mdEditText');
         var newContent = ta.value;
-        apiRequest('POST', '/md/' + _mdViewId + '/save', { content: newContent }, function(err, resp) {
+        apiRequest('POST', '/rs/md/' + _mdViewId + '/save', { content: newContent }, function(err, resp) {
             if (err) { showToast('error', '保存失败: ' + err); return; }
             _mdContent = newContent;
             _mdEditMode = false;
@@ -3406,7 +4224,7 @@
 
     // === 线下文档预览（简单实现：文本直接返回，其他提示外部打开）===
     function openDocPreview(id) {
-        apiRequest('GET', '/local-doc/preview/' + id, null, function(err, resp) {
+        apiRequest('GET', '/rs/local-doc/preview/' + id, null, function(err, resp) {
             if (err) { showToast('error', '加载失败: ' + err); return; }
             if (resp.type === 'text') {
                 alert('文件内容预览:\n\n' + resp.text.substring(0, 2000));
@@ -3416,10 +4234,87 @@
         });
     }
 
+    // === 菜单设置（需求 6+8：名称修改 / 分组 / 排序 / 显隐） ===
+    var MENU_GROUPS = [
+        {key:'resources', label:'资源管理'},
+        {key:'ai', label:'AI 能力'},
+        {key:'system', label:'系统设置'}
+    ];
+
+    function loadMenuSettings() {
+        apiRequest('GET', '/rs/menu/list', null, function(err, resp) {
+            var area = document.getElementById('menu-list-area');
+            if (err) { area.innerHTML = '<div style="color:var(--danger)">菜单加载失败: ' + escapeHtml(err) + '</div>'; return; }
+            var html = (resp || []).map(function(g) {
+                var rows = g.items.map(function(it) {
+                    var opts = MENU_GROUPS.map(function(mg) {
+                        return '<option value="' + mg.key + '"' + (mg.key === it.groupKey ? ' selected' : '') + '>' + mg.label + '</option>';
+                    }).join('');
+                    return '<tr>' +
+                        '<td style="padding:6px"><input type="checkbox" data-menu-check="' + escapeAttr(it.id) + '"></td>' +
+                        '<td style="padding:6px"><input class="form-control" id="mn_' + it.id + '" value="' + escapeAttr(it.displayName) + '" style="padding:4px 8px;font-size:.82rem;"></td>' +
+                        '<td style="padding:6px"><input class="form-control" id="mk_' + it.id + '" value="' + escapeAttr(it.menuKey) + '" disabled style="padding:4px 8px;font-size:.78rem;color:var(--text-light);"></td>' +
+                        '<td style="padding:6px"><select class="form-control" id="mg_' + it.id + '" style="padding:4px 8px;font-size:.8rem;">' + opts + '</select></td>' +
+                        '<td style="padding:6px;width:70px"><input class="form-control" id="ms_' + it.id + '" type="number" value="' + (it.sort || 0) + '" style="padding:4px 8px;font-size:.8rem;"></td>' +
+                        '<td style="padding:6px;text-align:center"><input type="checkbox" id="mv_' + it.id + '"' + (it.visible ? ' checked' : '') + '></td>' +
+                        '<td style="padding:6px"><button class="btn btn-primary btn-sm" onclick="saveMenuOne(\'' + it.id + '\')">保存</button></td>' +
+                        '</tr>';
+                }).join('');
+                return '<div style="margin-bottom:14px;">' +
+                    '<div style="font-size:.78rem;font-weight:600;color:var(--primary);margin-bottom:6px;">' + escapeHtml(g.groupLabel) + '</div>' +
+                    '<table class="table" style="width:100%;border-collapse:collapse;border:1px solid var(--border);border-radius:6px;">' +
+                    '<thead><tr style="background:var(--sidebar-hover);font-size:.78rem;color:var(--text-secondary);">' +
+                    '<th style="width:32px"></th><th>菜单名称</th><th>菜单 Key</th><th style="width:120px;">所属分组</th><th style="width:80px;">排序</th><th style="width:56px;">显示</th><th style="width:70px;"></th>' +
+                    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+            }).join('');
+            area.innerHTML = html || '<div style="color:var(--text-light)">暂无菜单配置</div>';
+        });
+    }
+
+    function saveMenuOne(id) {
+        var name = document.getElementById('mn_' + id).value.trim();
+        if (!name) { showToast('error', '菜单名称不能为空'); return; }
+        var body = {
+            displayName: name,
+            groupKey: document.getElementById('mg_' + id).value,
+            sort: parseInt(document.getElementById('ms_' + id).value, 10) || 0,
+            visible: document.getElementById('mv_' + id).checked ? 1 : 0
+        };
+        apiRequest('PUT', '/rs/menu/' + id, body, function(err) {
+            if (err) { showToast('error', '保存失败: ' + err); return; }
+            showToast('success', '菜单已更新');
+            loadMenuSettings();
+            loadAndRenderMenu();
+        });
+    }
+
+    crudModules['menu'] = {
+        load: loadMenuSettings,
+        reload: loadMenuSettings,
+        batchUpdate: function() {
+            var ids = Array.prototype.slice.call(document.querySelectorAll('#menu-list-area input[data-menu-check]:checked'))
+                .map(function(c) { return c.getAttribute('data-menu-check'); });
+            if (!ids.length) { showToast('info', '请先勾选要批量修改的菜单'); return; }
+            var g = prompt('批量设置所属分组 (resources / ai / system):', 'resources');
+            if (g === null) return;
+            g = g.trim();
+            if (!MENU_GROUPS.some(function(m){ return m.key === g; })) { showToast('error', '分组名无效'); return; }
+            var s = prompt('批量设置排序值 (数字):', '1');
+            if (s === null) return;
+            apiRequest('POST', '/rs/menu/batch-update', { ids: ids, groupKey: g, sort: parseInt(s, 10) || 0 }, function(err) {
+                if (err) { showToast('error', '批量更新失败: ' + err); return; }
+                showToast('success', '已更新 ' + ids.length + ' 个菜单');
+                loadMenuSettings();
+                loadAndRenderMenu();
+            });
+        }
+    };
+    crudModules['menu-settings'] = crudModules['menu'];   // 菜单面板 key 与模块 key 对齐
+
     // === 菜单重置 ===
     function openMenuResetModal() {
         if (!confirm('确认恢复所有菜单为默认配置?\n\n这将覆盖你所有的自定义菜单名称、分组和排序.')) return;
-        apiRequest('POST', '/menu/reset', null, function(err, resp) {
+        apiRequest('POST', '/rs/menu/reset', null, function(err, resp) {
             if (err) { showToast('error', err); return; }
             showToast('success', '已恢复默认');
             loadAndRenderMenu();
@@ -3429,11 +4324,13 @@
     // =================== 初始化 ===================
     setTimeout(function() {
         loadAndRenderMenu();
+        loadAiPresets();
         setTimeout(function() {
             // 初始加载各模块（在其 panel 显示时才加载）
             ['url','online-doc','local-doc','md','ai-preset'].forEach(function(n) {
                 if (crudModules[n]) {
-                    // 预加载第一页
+                    // 预加载第一页 + 初始化分类筛选
+                    if (crudModules[n]._cfg && crudModules[n]._cfg.catModule) initCatFilter(n);
                     crudModules[n].load();
                 }
             });

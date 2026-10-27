@@ -525,7 +525,12 @@ def md_list():
     page = request.args.get("page", 1, type=int)
     page_size = min(request.args.get("pageSize", 20, type=int), 1000)
     keyword = request.args.get("keyword", "").strip()
-    p = db.paginate(conn, "md_file", page=page, page_size=page_size,
+    cat = request.args.get("categoryId", "").strip()
+    where, args = "", ()
+    if cat:
+        where, args = "categoryId=?", (cat,)
+    p = db.paginate(conn, "md_file", where=where, params=args,
+                    page=page, page_size=page_size,
                     keyword_fields=["name", "filePath", "remark"], keyword=keyword)
     for r in p["rows"]:
         r["exists"] = os.path.isfile(r.get("filePath", ""))
@@ -577,6 +582,32 @@ def md_read(rid):
     with open(fp, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
     return _ok({"id": row["id"], "name": row["name"], "filePath": fp, "content": content})
+
+@bp.route("/md/<rid>/page", methods=["GET"])
+def md_page(rid):
+    """返回 MD 文件的 HTML 页面（供内置浏览器标签页打开）."""
+    import html as _html
+    conn = db._get_conn()
+    row = conn.execute("SELECT * FROM md_file WHERE id=?", (rid,)).fetchone()
+    if not row:
+        return _err("记录不存在", 404)
+    fp = row["filePath"]
+    if not os.path.isfile(fp):
+        return _err(f"文件不存在: {fp}", 404)
+    with open(fp, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+    page = (
+        "<!DOCTYPE html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+        f"<title>{_html.escape(row['name'])}</title>"
+        "<style>body{font-family:-apple-system,'PingFang SC',sans-serif;max-width:900px;"
+        "margin:0 auto;padding:24px;line-height:1.7;color:#1f2937;background:#fff;}"
+        "pre{background:#f5f7fb;padding:14px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;}"
+        "code{background:#f5f7fb;padding:1px 4px;border-radius:3px;}</style></head><body>"
+        f"<h1>{_html.escape(row['name'])}</h1>"
+        f"<p style=\"color:#94a3b8;font-size:.8rem;\">{_html.escape(fp)}</p>"
+        f"<pre>{_html.escape(content)}</pre></body></html>"
+    )
+    return Response(page, mimetype="text/html; charset=utf-8")
 
 @bp.route("/md/<rid>", methods=["PUT"])
 def md_update(rid):

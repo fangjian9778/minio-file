@@ -1124,9 +1124,63 @@ def ai_list_providers():
     ]
     return jsonify(providers)
 
+_ATTACH_MAX_CHARS = 8000   # 每个附件注入上下文的最大字符数
+
+
+def _read_attach_text(path):
+    """读取附件文本内容, 超长截断. 失败返回 None."""
+    try:
+        if not path or not os.path.isfile(path):
+            return None
+        # 限制读取字节数, 避免大文件拖垮 AI 上下文
+        with open(path, "rb") as f:
+            raw = f.read(_ATTACH_MAX_CHARS * 4)
+        text = raw.decode("utf-8", errors="replace")
+        if len(text) > _ATTACH_MAX_CHARS:
+            text = text[:_ATTACH_MAX_CHARS] + "\n...(内容过长已截断)"
+        return text
+    except Exception:
+        return None
+
+
+def _build_attachments_context(attachments):
+    """把前端引用的附件解析成一段上下文文本.
+
+    支持三种类型:
+      - menu: 各菜单资源 (url/online-doc 只挂地址; md/local-doc 读取文件内容)
+      - upload: 前端已读好的文本内容, 直接注入
+      - path: 外部本机路径, 服务端读取文件内容 (只挂路径 + 实际读取)
+    """
+    parts = []
+    for a in (attachments or [])[:20]:
+        typ = a.get("type") or "menu"
+        name = a.get("name") or "未命名"
+        if typ == "upload":
+            content = (a.get("content") or "")[:_ATTACH_MAX_CHARS]
+            if content:
+                parts.append("【文件: %s (本地上传)】\n%s" % (name, content))
+        elif typ == "path":
+            text = _read_attach_text(a.get("path", ""))
+            if text is not None:
+                parts.append("【文件: %s (%s)】\n%s" % (name, a.get("path", ""), text))
+            else:
+                parts.append("【文件: %s】路径 %s (内容不可读, 仅路径引用)" % (name, a.get("path", "")))
+        else:  # menu
+            module = a.get("module", "")
+            if module in ("url", "online-doc"):
+                parts.append("【资源: %s】%s" % (name, a.get("url", "")))
+            elif module in ("md", "local-doc"):
+                text = _read_attach_text(a.get("path", ""))
+                if text is not None:
+                    parts.append("【文件: %s (%s)】\n%s" % (name, a.get("path", ""), text))
+                else:
+                    parts.append("【资源: %s】路径 %s (文件不存在或不可读)" % (name, a.get("path", "")))
+    return "\n\n".join(parts)
+
+
 @bp.route("/api/ai/chat", methods=["POST"])
 def ai_chat():
-    """AI 聊天 (SSE 流式). 前端发送 messages 数组, 这里代理到 OpenAI 兼容 API."""
+    """AI 聊天 (SSE 流式). 前端发送 messages 数组 + 可选 attachments, 这里代理到 OpenAI 兼容 API."""
     if not HAS_REQUESTS:
         return jsonify({"error": "缺少 requests 依赖, 请 pip install requests"}), 500
 
@@ -1142,6 +1196,14 @@ def ai_chat():
     # 追加 system prompt
     sys_prompt = cfg.get("system_prompt", "") or "你是一个专业的文件管理助手, 可以帮助用户分析 MinIO 文件存储情况."
     full_messages = [{"role": "system", "content": sys_prompt}] + messages
+
+    # 引用附件 -> 注入到 system 之后的上下文
+    attach_ctx = _build_attachments_context(data.get("attachments"))
+    if attach_ctx:
+        full_messages.insert(1, {
+            "role": "system",
+            "content": "以下是用户引用的文件/资源内容, 请结合它们回答:\n\n" + attach_ctx,
+        })
 
     model = cfg.get("model", "gpt-4o")
     temperature = float(cfg.get("temperature", 0.7))

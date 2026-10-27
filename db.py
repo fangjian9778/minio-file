@@ -150,11 +150,13 @@ CREATE TABLE IF NOT EXISTS batch_log (
 # 菜单默认种子（需求 8 分组结构）
 DEFAULT_MENUS = [
     # --- 资源管理 ---
-    ("menu_minio",       "MinIO 文件", "resources", 1, "📦", "files"),
+    ("menu_minio",       "MinIO 文件", "resources", 1, "📦", "upload"),
+    ("menu_download",    "文件下载",   "resources", 7, "📥", "download"),
     ("menu_url",         "URL 地址",   "resources", 2, "🔗", "urls"),
     ("menu_online_doc",  "在线文档",   "resources", 3, "📚", "online-docs"),
     ("menu_local_doc",   "线下文档",   "resources", 4, "📄", "local-docs"),
     ("menu_md",          "MD 文件",    "resources", 5, "📝", "md-files"),
+    ("menu_browser",     "内置浏览器", "resources", 6, "🌐", "browser"),
     # --- AI 能力 ---
     ("menu_ai",          "AI 助手",    "ai",         1, "🤖", "ai"),
     ("menu_ai_preset",   "AI 预设",    "ai",         2, "✨", "ai-presets"),
@@ -164,17 +166,20 @@ DEFAULT_MENUS = [
 ]
 
 def init_db():
-    """首次启动时建表 + 种默认菜单."""
+    """首次启动时建表 + 种默认菜单（按 menuKey 幂等补齐）."""
     conn = _get_conn()
     conn.executescript(SCHEMA)
-    # 种菜单（幂等：只在 menu_config 空时插入）
-    cur = conn.execute("SELECT COUNT(*) FROM menu_config")
-    if cur.fetchone()[0] == 0:
+    existing = {r[0] for r in conn.execute("SELECT menuKey FROM menu_config").fetchall()}
+    missing = [(uuid.uuid4().hex, k, n, g, s, 1, ic, p)
+               for (k, n, g, s, ic, p) in DEFAULT_MENUS if k not in existing]
+    if missing:
         conn.executemany(
             "INSERT INTO menu_config(id, menuKey, displayName, groupKey, sort, visible, icon, panel) "
             "VALUES (?,?,?,?,?,?,?,?)",
-            [(uuid.uuid4().hex, k, n, g, s, 1, ic, p) for (k, n, g, s, ic, p) in DEFAULT_MENUS]
+            missing
         )
+    # 迁移：旧数据 menu_minio 指向不存在的 'files' 面板
+    conn.execute("UPDATE menu_config SET panel='upload' WHERE menuKey='menu_minio' AND panel='files'")
     conn.commit()
     return DB_FILE
 
