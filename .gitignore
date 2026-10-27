@@ -29,3 +29,4 @@ TEST_REPORT.md
 e2e_test.py
 GUIDE.md
 python2.7/
+.resource_manager.db

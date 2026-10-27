@@ -1206,6 +1206,16 @@ def ai_chat():
 load_config()
 app.register_blueprint(bp)
 
+# 资源管理模块（PRD 需求 2~8）
+try:
+    import db as _db
+    import resource_api as _rs
+    _db.init_db()
+    _rs.register_module_blueprint(app)
+except Exception as _e:
+    import sys as _sys
+    print(f"[WARN] 资源管理模块加载失败: {_e}", file=_sys.stderr)
+
 
 @app.route("/")
 def root_redirect():
